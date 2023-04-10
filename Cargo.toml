@@ -1,0 +1,28 @@
+[package]
+name          = "qbit-rs"
+version       = "0.1.0"
+edition       = "2021"
+license       = "MIT"
+description   = "A Rust library for interacting with qBittorrent's Web API"
+readme        = "README.md"
+documentation = "https://docs.rs/qbit"
+repository    = "https://github.com/George-Miao/qbit"
+homepage      = "https://github.com/George-Miao/qbit"
+authors       = ["George Miao <gm@miao.dev>"]
+keywords      = ["qbit", "qBittorrent", "web", "api", "torrent"]
+categories    = ["network-programming"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+mod_use     = "0.2.1"
+serde-value = "0.7.0"
+serde_repr  = "0.1.12"
+tap         = "1.0.1"
+thiserror   = "1.0.40"
+
+http-client = { version = "6.5.3", default-features = false }
+serde       = { version = "1.0.159", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1.0.95"
