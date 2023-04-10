@@ -1,4 +1,10 @@
-use http_client::{http_types::Url, Body};
+use std::fmt::{Debug, Display};
+
+use http_client::http_types::Url;
+use serde::Serialize;
+use serde_with::SerializeDisplay;
+
+use crate::model::Sep;
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -76,17 +82,16 @@ pub struct Torrent {
     pub progress: Option<f64>,
     /// Torrent share ratio. Max ratio value: 9999.
     pub ratio: Option<f64>,
-    /// TODO (what is different from `max_ratio`?)
     pub ratio_limit: Option<f64>,
     /// Path where this torrent's data is stored
     pub save_path: Option<String>,
     /// Torrent elapsed time while complete (seconds)
     pub seeding_time: Option<i64>,
-    /// TODO (what is different from `max_seeding_time`?) seeding_time_limit is
-    /// a per torrent setting, when Automatic Torrent Management is disabled,
-    /// furthermore then max_seeding_time is set to seeding_time_limit for this
-    /// torrent. If Automatic Torrent Management is enabled, the value is -2.
-    /// And if max_seeding_time is unset it have a default value -1.
+    /// seeding_time_limit is a per torrent setting, when Automatic Torrent
+    /// Management is disabled, furthermore then max_seeding_time is set to
+    /// seeding_time_limit for this torrent. If Automatic Torrent Management
+    /// is enabled, the value is -2. And if max_seeding_time is unset it
+    /// have a default value -1.
     pub seeding_time_limit: Option<i64>,
     /// Time (Unix Epoch) when this torrent was last seen complete
     pub seen_complete: Option<i64>,
@@ -108,7 +113,7 @@ pub struct Torrent {
     /// The first tracker with working status. Returns empty String if no
     /// tracker is working.
     pub tracker: Option<String>,
-    /// Torrent upload speed limit (bytes/s). `-1` if ulimited.
+    /// Torrent upload speed limit (bytes/s). `-1` if unlimited.
     pub up_limit: Option<i64>,
     /// Amount of data uploaded
     pub uploaded: Option<i64>,
@@ -125,25 +130,25 @@ pub enum State {
     Error,
     /// Torrent data files is missing
     #[serde(rename = "missingFiles")]
-    Missingfiles,
+    MissingFiles,
     /// Torrent is being seeded and data is being transferred
     #[serde(rename = "uploading")]
     Uploading,
     /// Torrent is paused and has finished downloading
     #[serde(rename = "pausedUP")]
-    Pausedup,
+    PausedUP,
     /// Queuing is enabled and torrent is queued for upload
     #[serde(rename = "queuedUP")]
-    Queuedup,
+    QueuedUP,
     /// Torrent is being seeded, but no connection were made
     #[serde(rename = "stalledUP")]
-    StalledUp,
+    StalledUP,
     /// Torrent has finished downloading and is being checked
     #[serde(rename = "checkingUP")]
-    CheckingUp,
+    CheckingUP,
     /// Torrent is forced to uploading and ignore queue limit
     #[serde(rename = "forcedUP")]
-    Forcedup,
+    ForcedUP,
     /// Torrent is allocating disk space for download
     #[serde(rename = "allocating")]
     Allocating,
@@ -170,7 +175,7 @@ pub enum State {
     ForcedDL,
     /// Checking resume data on qBt startup
     #[serde(rename = "checkingResumeData")]
-    Checkingresumedata,
+    CheckingResumeData,
     /// Torrent is moving to another location
     #[serde(rename = "moving")]
     Moving,
@@ -179,6 +184,7 @@ pub enum State {
     Unknown,
 }
 
+#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
 pub struct TorrentProperty {
     /// Torrent save path
     pub save_path: Option<String>,
@@ -257,20 +263,20 @@ pub struct WebSeed {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TorrentContent {
     /// File index
-    pub index: i64,
+    pub index: u64,
     /// File name (including relative path),
     pub name: String,
     /// File size (bytes),
-    pub size: i64,
+    pub size: u64,
     /// File progress (percentage/100),
     pub progress: f64,
     /// File priority. See possible values here below,
     pub priority: Priority,
     /// True if file is seeding/complete,
     pub is_seed: bool,
-    /// | The first number is the starting piece index and the second number is
+    /// The first number is the starting piece index and the second number is
     /// the ending piece index (inclusive),
-    pub piece_range: Vec<i64>,
+    pub piece_range: Vec<u64>,
     /// Percentage of file pieces currently available (percentage/100),
     pub availability: f64,
 }
@@ -286,7 +292,7 @@ pub struct TorrentContent {
     serde_repr::Serialize_repr,
     serde_repr::Deserialize_repr,
 )]
-#[repr(i8)]
+#[repr(u8)]
 pub enum Priority {
     /// Do not download
     DoNotDownload = 0,
@@ -309,7 +315,7 @@ pub enum Priority {
     serde_repr::Serialize_repr,
     serde_repr::Deserialize_repr,
 )]
-#[repr(i8)]
+#[repr(u8)]
 pub enum PieceState {
     /// Not downloaded yet
     NotDownloaded = 0,
@@ -319,67 +325,157 @@ pub enum PieceState {
     Downloaded    = 2,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, SerializeDisplay)]
 pub enum Hashes {
-    /// Hashes of torrents to be deleted
-    Hashes(Vec<String>),
-    /// Hashes of torrents to be deleted
+    /// A list of torrent hashes separated by `|`
+    Hashes(Sep<String, '|'>),
+    /// All torrents
     All,
 }
 
-impl From<Vec<String>> for Hashes {
-    fn from(hashes: Vec<String>) -> Self {
-        Hashes::Hashes(hashes)
+impl<V: Into<Vec<String>>> From<V> for Hashes {
+    fn from(hashes: V) -> Self {
+        Hashes::Hashes(Sep::from(hashes))
     }
 }
 
-impl ToString for Hashes {
-    fn to_string(&self) -> String {
+impl Display for Hashes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Hashes::Hashes(hashes) => hashes.join("|"),
-            Hashes::All => "all".to_string(),
+            Hashes::Hashes(hashes) => hashes.fmt(f),
+            Hashes::All => write!(f, "all"),
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize)]
+pub struct GetTorrentListArg {
+    /// Filter torrent list by state. Allowed state filters: `all`,
+    /// `downloading`, `seeding`, `completed`, `paused`, `active`, `inactive`,
+    /// `resumed`, `stalled`, `stalled_uploading`, `stalled_downloading`,
+    /// `errored`
+    pub filter: Option<AddTorrentArg>,
+    /// Get torrents with the given category (empty string means "without category"; no "category" parameter means "any category" <- broken until [#11748](https://github.com/qbittorrent/qBittorrent/issues/11748) is resolved). Remember to URL-encode the category name. For example, `My category` becomes `My%20category`
+    pub category: Option<String>,
+    /// Get torrents with the given tag (empty string means "without tag"; no
+    /// "tag" parameter means "any tag". Remember to URL-encode the category
+    /// name. For example, `My tag` becomes `My%20tag`
+    pub tag: Option<String>,
+    /// Sort torrents by given key. They can be sorted using any field of the
+    /// response's JSON array (which are documented below) as the sort key.
+    pub sort: Option<String>,
+    /// Enable reverse sorting. Defaults to `false`
+    pub reverse: Option<bool>,
+    /// Limit the number of torrents returned
+    pub limit: Option<u64>,
+    /// Set offset (if less than 0, offset from end)
+    pub offset: Option<i64>,
+    /// Filter by hashes. Can contain multiple hashes separated by `\|`
+    pub hashes: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub enum TorrentSource {
+    /// URLs
+    Urls(Vec<Url>),
+    /// Raw data of torrent file.
+    TorrentFiles(Vec<Vec<u8>>),
+}
+
+#[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize)]
 pub struct AddTorrentArg {
-    /// URLs separated with newlines
-    pub urls: String,
-    /// Raw data of torrent file. `torrents` can be presented multiple times.
-    pub torrents: Vec<Vec<u8>>,
     /// Download folder
-    pub savepath: String,
+    pub savepath: Option<String>,
     /// Cookie sent to download the .torrent file
-    pub cookie: String,
+    pub cookie: Option<String>,
     /// Category for the torrent
-    pub category: String,
+    pub category: Option<String>,
     /// Tags for the torrent, split by ','
-    pub tags: String,
+    pub tags: Option<String>,
     /// Skip hash checking. Possible values are `true`, `false` (default)
-    pub skip_checking: String,
+    pub skip_checking: Option<String>,
     /// Add torrents in the paused state. Possible values are `true`, `false`
     /// (default)
-    pub paused: String,
+    pub paused: Option<String>,
     /// Create the root folder. Possible values are `true`, `false`, unset
     /// (default)
-    pub root_folder: String,
+    pub root_folder: Option<String>,
     /// Rename torrent
-    pub rename: String,
+    pub rename: Option<String>,
     /// Set torrent upload speed limit. Unit in bytes/second
-    pub upLimit: i64,
+    #[serde(rename = "upLimit")]
+    pub up_limit: Option<i64>,
     /// Set torrent download speed limit. Unit in bytes/second
-    pub dlLimit: i64,
+    #[serde(rename = "dlLimit")]
+    pub download_limit: Option<i64>,
     /// Set torrent share ratio limit
-    pub ratioLimit: f64,
+    #[serde(rename = "ratioLimit")]
+    pub ratio_limit: Option<f64>,
     /// Set torrent seeding time limit. Unit in minutes
-    pub seedingTimeLimit: i64,
+    #[serde(rename = "seedingTimeLimit")]
+    pub seeding_time_limit: Option<i64>,
     /// Whether Automatic Torrent Management should be used
-    pub autoTMM: bool,
+    #[serde(rename = "autoTMM")]
+    pub auto_torrent_management: Option<bool>,
     /// Enable sequential download. Possible values are `true`, `false`
     /// (default)
-    pub sequentialDownload: String,
+    #[serde(rename = "sequentialDownload")]
+    pub sequential_download: Option<String>,
     /// Prioritize download first last piece. Possible values are `true`,
     /// `false` (default)
-    pub firstLastPiecePrio: String,
+    #[serde(rename = "firstLastPiecePrio")]
+    pub first_last_piece_priority: Option<String>,
+}
+
+#[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetTorrentSharedLimitArg {
+    #[cfg_attr(feature = "builder", builder(setter(into)))]
+    hashes: Hashes,
+    ratio_limit: Option<RatioLimit>,
+    seeding_time_limit: Option<SeedingTimeLimit>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub enum RatioLimit {
+    Global,
+    NoLimit,
+    Limited(f64),
+}
+
+impl Serialize for RatioLimit {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Global => serializer.serialize_i64(-2),
+            Self::NoLimit => serializer.serialize_i64(-1),
+            Self::Limited(limit) => serializer.serialize_f64(*limit),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub enum SeedingTimeLimit {
+    Global,
+    NoLimit,
+    /// Number of minutes
+    Limited(u64),
+}
+
+impl Serialize for SeedingTimeLimit {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Global => serializer.serialize_i64(-2),
+            Self::NoLimit => serializer.serialize_i64(-1),
+            Self::Limited(limit) => serializer.serialize_u64(*limit),
+        }
+    }
 }

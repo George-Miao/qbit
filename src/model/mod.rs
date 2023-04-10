@@ -1,53 +1,19 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, str::FromStr};
 
-use http_client::{http_types::StatusCode, Response};
-use serde::{
-    de::{Deserializer, Error as DesError},
-    Deserialize, Serialize,
-};
+use serde::{Deserialize, Serialize};
+use serde_with::{DeserializeFromStr, SerializeDisplay};
+use tap::Pipe;
 
-use crate::{ApiError, Error};
+mod_use::mod_use![app, log, sync, torrent, transfer, search];
 
-mod_use::mod_use![cookie, app, log, sync, torrent, transfer, search];
-
-pub trait FromResponse {
-    fn from_response(response: &Response) -> Result<Self, Error>
-    where
-        Self: Sized;
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Credential {
+    pub username: String,
+    pub password: String,
 }
-
-pub trait ResponseExt: Sized {
-    fn extract<T: FromResponse>(&self) -> Result<T, Error>;
-
-    fn handle_status<F: FnOnce(StatusCode) -> Option<Error>>(self, f: F) -> Result<Self, Error>;
-}
-
-impl ResponseExt for Response {
-    fn extract<T: FromResponse>(&self) -> Result<T, Error> {
-        T::from_response(self)
-    }
-
-    fn handle_status<F: FnOnce(StatusCode) -> Option<Error>>(self, f: F) -> Result<Self, Error> {
-        let status = self.status();
-
-        if status.is_success() {
-            Ok(self)
-        } else {
-            match f(status) {
-                Some(err) => Err(err),
-                None => match status {
-                    StatusCode::Forbidden => Err(Error::ApiError(ApiError::Unauthorized)),
-                    code => Err(Error::UnknownHttpCode(code)),
-                },
-            }
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Default)]
-pub(crate) struct Empty;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Category {
     pub name: String,
     pub save_path: PathBuf,
@@ -101,4 +67,33 @@ pub enum TrackerStatus {
     /// Tracker has been contacted, but it is not working (or doesn't send
     /// proper replies)
     NotWorking   = 4,
+}
+
+/// A wrapper around `Vec<T>` that implements `FromStr` and `ToString` as
+/// `C`-separated strings where `C` is a char.
+#[derive(Debug, Clone, PartialEq, Eq, SerializeDisplay, DeserializeFromStr)]
+pub struct Sep<T, const C: char>(Vec<T>);
+
+impl<T: FromStr, const C: char> FromStr for Sep<T, C> {
+    type Err = T::Err;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.split(C)
+            .map(T::from_str)
+            .collect::<Result<Vec<_>, Self::Err>>()?
+            .pipe(Sep::from)
+            .pipe(Ok)
+    }
+}
+
+impl<T: ToString, const C: char> ToString for Sep<T, C> {
+    fn to_string(&self) -> String {
+        self.0.iter().map(ToString::to_string).collect()
+    }
+}
+
+impl<V: Into<Vec<T>>, T, const C: char> From<V> for Sep<T, C> {
+    fn from(inner: V) -> Self {
+        Sep(inner.into())
+    }
 }

@@ -1,77 +1,83 @@
 #![warn(clippy::future_not_send)]
+#![cfg_attr(test, feature(lazy_cell))]
 
-use std::{path::PathBuf, sync::OnceLock};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::OnceLock,
+};
 
 use http_client::{
-    http_types::{cookies::Cookie as HttpCookie, headers, StatusCode, Url},
+    http_types::{headers, Method, StatusCode, Url},
     Body, HttpClient, Request, Response,
 };
 use serde::Serialize;
-use tap::Pipe;
+use tap::TapFallible;
+use tracing::{debug, trace};
 
-use crate::model::{
-    BuildInfo, Cookie, Hashes, Log, PeerLog, PieceState, Preferences, ResponseExt, Torrent,
-    TorrentContent, TorrentFilter, TorrentProperty, Tracker, TransferInfo, WebSeed,
+use crate::{
+    ext::*,
+    model::{
+        AddTorrentArg, BuildInfo, Category, Credential, GetTorrentListArg, Hashes, Log, PeerLog,
+        PieceState, Preferences, Priority, Sep, SetTorrentSharedLimitArg, Torrent, TorrentContent,
+        TorrentProperty, TorrentSource, Tracker, TransferInfo, WebSeed,
+    },
 };
 
+mod ext;
 mod model;
 
 pub struct Api<C> {
     client: C,
-    url: Url,
-    cookie: OnceLock<HttpCookie<'static>>,
+    endpoint: Url,
+    credential: Credential,
+    cookie: OnceLock<String>,
 }
 
 impl<C: HttpClient> Api<C> {
-    pub fn new(url: Url, client: C) -> Self {
+    pub fn new(endpoint: Url, credential: Credential, client: C) -> Self {
         Self {
             client,
-            url,
+            endpoint,
+            credential,
             cookie: OnceLock::new(),
         }
     }
 
-    pub async fn login(
-        &self,
-        username: impl AsRef<str> + Send,
-        password: impl AsRef<str> + Send,
-    ) -> Result<()> {
-        #[derive(Serialize)]
-        struct Login<'a> {
-            username: &'a str,
-            password: &'a str,
+    pub fn new_with_cookie(endpoint: Url, cookie: String, client: C) -> Self {
+        Self {
+            client,
+            endpoint,
+            credential: Credential {
+                username: String::new(),
+                password: String::new(),
+            },
+            cookie: OnceLock::from(cookie),
         }
+    }
 
-        let (username, password) = (username.as_ref(), password.as_ref());
-
-        if self.cookie.get().is_none() {
-            let cookie = self
-                .get("login", Login { username, password })
-                .await?
-                .handle_status(|code| match code as _ {
-                    StatusCode::Forbidden => Some(Error::ApiError(ApiError::IpBanned)),
-                    _ => None,
-                })?
-                .extract::<Cookie>()?
-                .cookie;
-
-            // Ignore result
-            drop(self.cookie.set(cookie));
-        }
-
-        Ok(())
+    pub async fn get_cookie(&self) -> Result<Option<String>> {
+        Ok(self.cookie.get().cloned())
     }
 
     pub async fn logout(&self) -> Result<()> {
-        todo!()
+        self.get("auth/logout", NONE).await.map(|_| ())
     }
 
     pub async fn get_version(&self) -> Result<String> {
-        todo!()
+        self.get("app/version", NONE)
+            .await?
+            .body_string()
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn get_webapi_version(&self) -> Result<String> {
-        todo!()
+        self.get("app/webapiVersion", NONE)
+            .await?
+            .body_string()
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn get_build_info(&self) -> Result<BuildInfo> {
@@ -135,21 +141,11 @@ impl<C: HttpClient> Api<C> {
         todo!()
     }
 
-    pub async fn ban_peers(&self, peers: impl AsRef<[String]> + Send) -> Result<()> {
+    pub async fn ban_peers(&self, peers: impl Into<Sep<String, '|'>> + Send) -> Result<()> {
         todo!()
     }
 
-    pub async fn get_torrent_list(
-        &self,
-        filter: impl Into<Option<TorrentFilter>> + Send,
-        category: impl Into<Option<String>> + Send,
-        tag: impl Into<Option<String>> + Send,
-        sort: impl Into<Option<String>> + Send,
-        reverse: impl Into<Option<bool>> + Send,
-        limit: impl Into<Option<u64>> + Send,
-        offset: impl Into<Option<u64>> + Send,
-        hashes: impl Into<Option<Vec<String>>> + Send,
-    ) -> Result<Vec<Torrent>> {
+    pub async fn get_torrent_list(&self, arg: GetTorrentListArg) -> Result<Vec<Torrent>> {
         todo!()
     }
 
@@ -174,7 +170,7 @@ impl<C: HttpClient> Api<C> {
     pub async fn get_torrent_contents(
         &self,
         hash: impl AsRef<str> + Send,
-        indexes: impl Into<Vec<String>>,
+        indexes: impl Into<Sep<String, '|'>> + Send,
     ) -> Result<Vec<TorrentContent>> {
         todo!()
     }
@@ -217,48 +213,328 @@ impl<C: HttpClient> Api<C> {
         todo!()
     }
 
-    // pub async fn add_torrent(&self, urls: )
-    async fn get(&self, path: &'static str, qs: impl Serialize + Send + Sync) -> Result<Response> {
-        self.url
+    pub async fn add_torrent(
+        &self,
+        src: TorrentSource,
+        arg: AddTorrentArg,
+    ) -> Result<Vec<Torrent>> {
+        todo!()
+    }
+
+    pub async fn add_trackers(
+        &self,
+        hash: impl AsRef<str> + Send,
+        urls: impl Into<Sep<String, '\n'>> + Send,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn edit_trackers(
+        &self,
+        hash: impl AsRef<str> + Send,
+        orig_url: Url,
+        new_url: Url,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn remove_trackers(
+        &self,
+        hash: impl AsRef<str> + Send,
+        url: impl AsRef<str> + Send,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn add_peers(
+        &self,
+        hash: impl AsRef<str> + Send,
+        peers: impl Into<Sep<String, '|'>> + Send,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn increase_priority(&self, hashes: impl Into<Hashes> + Send) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn decrease_priority(&self, hashes: impl Into<Hashes> + Send) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn maximal_priority(&self, hashes: impl Into<Hashes> + Send) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn minimal_priority(&self, hashes: impl Into<Hashes> + Send) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn set_file_priority(
+        &self,
+        hash: impl AsRef<str> + Send,
+        indexes: impl Into<Sep<i64, '|'>> + Send,
+        priority: Priority,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn get_torrent_download_limit(
+        &self,
+        hashes: impl Into<Hashes> + Send,
+    ) -> Result<HashMap<String, u64>> {
+        todo!()
+    }
+
+    pub async fn set_torrent_download_limit(
+        &self,
+        hashes: impl Into<Hashes> + Send,
+        limit: u64,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn set_torrent_shared_limit(&self, arg: SetTorrentSharedLimitArg) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn get_torrent_upload_limit(
+        &self,
+        hashes: impl Into<Hashes> + Send,
+    ) -> Result<HashMap<String, u64>> {
+        todo!()
+    }
+
+    pub async fn set_torrent_upload_limit(
+        &self,
+        hashes: impl Into<Hashes> + Send,
+        limit: u64,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn set_torrent_location(
+        &self,
+        hashes: impl Into<Hashes> + Send,
+        location: impl AsRef<str> + Send,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn set_torrent_name(
+        &self,
+        hash: impl AsRef<str> + Send,
+        name: impl AsRef<str> + Send,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn set_torrent_category(
+        &self,
+        hashes: impl Into<Hashes> + Send,
+        category: impl AsRef<str> + Send,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn get_categories(&self) -> Result<HashMap<String, Category>> {
+        todo!()
+    }
+
+    pub async fn add_category(
+        &self,
+        category: impl AsRef<str> + Send,
+        save_path: impl AsRef<Path> + Send,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn edit_category(
+        &self,
+        category: impl AsRef<str> + Send,
+        save_path: impl AsRef<Path> + Send,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn remove_categories(
+        &self,
+        categories: impl Into<Sep<String, '\n'>> + Send,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn add_torrent_tags(
+        &self,
+        hashes: impl Into<Hashes> + Send,
+        tags: impl Into<Sep<String, '\n'>> + Send,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn remove_torrent_tags(
+        &self,
+        hashes: impl Into<Hashes> + Send,
+        tags: Option<impl Into<Sep<String, '\n'>> + Send>,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn get_all_tags(&self) -> Result<Vec<String>> {
+        todo!()
+    }
+
+    pub async fn create_tags(&self, tags: impl Into<Sep<String, ','>> + Send) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn delete_tags(&self, tags: impl Into<Sep<String, ','>> + Send) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn set_auto_management(
+        &self,
+        hashes: impl Into<Hashes> + Send,
+        enable: bool,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn toggle_torrent_sequential_download(
+        &self,
+        hashes: impl Into<Hashes> + Send,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn toggle_first_last_piece_priority(
+        &self,
+        hashes: impl Into<Hashes> + Send,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn set_force_start(
+        &self,
+        hashes: impl Into<Hashes> + Send,
+        value: bool,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn set_super_seeding(
+        &self,
+        hashes: impl Into<Hashes> + Send,
+        value: bool,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn rename_file(
+        &self,
+        hash: impl AsRef<str> + Send,
+        old_path: impl AsRef<Path> + Send,
+        new_path: impl AsRef<Path> + Send,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    pub async fn rename_folder(
+        &self,
+        hash: impl AsRef<str> + Send,
+        old_path: impl AsRef<Path> + Send,
+        new_path: impl AsRef<Path> + Send,
+    ) -> Result<()> {
+        todo!()
+    }
+
+    fn url(&self, path: &'static str) -> Url {
+        self.endpoint
+            .join("api/v2/")
+            .unwrap()
             .join(path)
-            .expect("Invalid API path")
-            .pipe(Request::get)
-            .pipe(|mut r| {
-                if let Some(cookie) = self.cookie.get() {
-                    r.append_header(headers::COOKIE, cookie.to_string())
-                }
-                r.set_query(&qs)?;
-                Result::<_>::Ok(r)
-            })?
-            .pipe(|req| self.client.send(req))
+            .expect("Invalid API endpoint")
+    }
+
+    async fn login(&self) -> Result<()> {
+        if self.cookie.get().is_none() {
+            debug!("Cookie not found, logging in");
+            let mut req = Request::get(self.url("auth/login"));
+            req.set_query(&self.credential)?;
+            let Cookie(cookie) = self
+                .client
+                .send(req)
+                .await?
+                .handle_status(|code| match code as _ {
+                    StatusCode::Forbidden => Some(Error::ApiError(ApiError::IpBanned)),
+                    _ => None,
+                })?
+                .extract::<Cookie>()?;
+
+            // Ignore result
+            drop(self.cookie.set(cookie));
+
+            debug!("Log in success");
+        } else {
+            trace!("Already logged in, skipping");
+        }
+
+        Ok(())
+    }
+
+    async fn request(
+        &self,
+        method: Method,
+        path: &'static str,
+        qs: Option<&(impl Serialize + Sync)>,
+        body: Option<&(impl Serialize + Sync)>,
+    ) -> Result<Response> {
+        self.login().await?;
+        let mut req = Request::new(method, self.url(path));
+
+        req.append_header(
+            headers::COOKIE,
+            self.cookie.get().expect("Cookie should be set after login"),
+        );
+
+        if let Some(qs) = qs {
+            req.set_query(qs)?;
+        }
+
+        if let Some(body) = body {
+            req.set_body(Body::from_json(body)?);
+        }
+
+        trace!(request = ?req, "Sending request");
+
+        self.client
+            .send(req)
             .await
             .map_err(Into::into)
+            .tap_ok(|res| trace!(?res))
+    }
+
+    // pub async fn add_torrent(&self, urls: )
+    async fn get(
+        &self,
+        path: &'static str,
+        qs: Option<&(impl Serialize + Sync)>,
+    ) -> Result<Response> {
+        self.request(Method::Get, path, qs, Option::<&()>::None)
+            .await
     }
 
     async fn post(
         &self,
         path: &'static str,
-        qs: impl Serialize + Send + Sync,
-        body: impl Serialize + Send + Sync,
+        qs: Option<&(impl Serialize + Sync)>,
+        body: Option<&(impl Serialize + Sync)>,
     ) -> Result<Response> {
-        self.url
-            .join(path)
-            .expect("Invalid API path")
-            .pipe(Request::post)
-            .pipe(|mut r| {
-                if let Some(cookie) = self.cookie.get() {
-                    r.append_header(headers::COOKIE, cookie.to_string())
-                }
-
-                r.set_query(&qs)?;
-                r.set_body(Body::from_json(&body)?);
-                Result::<_, Error>::Ok(r)
-            })?
-            .pipe(|req| self.client.send(req))
-            .await
-            .map_err(Into::into)
+        self.request(Method::Post, path, qs, body).await
     }
 }
+
+const NONE: Option<&'static ()> = Option::None;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -295,3 +571,52 @@ impl From<http_client::Error> for Error {
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
+
+#[cfg(test)]
+mod test {
+    use std::{env, sync::LazyLock};
+
+    use http_client::h1::H1Client;
+    use tracing::info;
+
+    use super::*;
+
+    async fn prepare<'a>() -> Result<&'a Api<H1Client>> {
+        static PREPARE: LazyLock<(Credential, Url)> = LazyLock::new(|| {
+            dotenv::dotenv().expect("Failed to load .env file");
+            tracing_subscriber::fmt::init();
+
+            (
+                Credential {
+                    username: env::var("QBIT_USERNAME").expect("QBIT_USERNAME not set"),
+                    password: env::var("QBIT_PASSWORD").expect("QBIT_PASSWORD not set"),
+                },
+                env::var("QBIT_BASEURL")
+                    .expect("QBIT_BASEURL not set")
+                    .parse()
+                    .expect("QBIT_BASEURL is not a valid url"),
+            )
+        });
+        static API: OnceLock<Api<H1Client>> = OnceLock::new();
+
+        if let Some(api) = API.get() {
+            Ok(api)
+        } else {
+            let (credential, url) = &*PREPARE;
+            let api = Api::new(url.to_owned(), credential.clone(), H1Client::new());
+            api.login().await?;
+            drop(API.set(api));
+            Ok(API.get().unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_login() {
+        let client = prepare().await.unwrap();
+
+        info!(
+            version = client.get_version().await.unwrap(),
+            "Login success"
+        );
+    }
+}
