@@ -9,7 +9,7 @@ use std::{
 };
 
 use http_client::{
-    http_types::{headers, Method, Status, StatusCode, Url},
+    http_types::{headers, Method, StatusCode, Url},
     Body, HttpClient, Request, Response,
 };
 pub mod model;
@@ -483,19 +483,17 @@ impl<C: HttpClient> Api<C> {
                 new_url,
             }),
         )
-        .await
-        .and_then(|r| {
-            r.map_status(|c| {
-                use StatusCode::*;
-                match c {
-                    BadRequest => Some(Error::ApiError(ApiError::InvalidTrackerUrl)),
-                    NotFound => Some(Error::ApiError(ApiError::TorrentNotFound)),
-                    Conflict => Some(Error::ApiError(
-                        ApiError::UrlAlreadyExistedOrOriginalUrlNotFound,
-                    )),
-                    _ => None,
-                }
-            })
+        .await?
+        .map_status(|c| {
+            use StatusCode::*;
+            match c {
+                BadRequest => Some(Error::ApiError(ApiError::InvalidTrackerUrl)),
+                NotFound => Some(Error::ApiError(ApiError::TorrentNotFound)),
+                Conflict => Some(Error::ApiError(
+                    ApiError::UrlAlreadyExistedOrOriginalUrlNotFound,
+                )),
+                _ => None,
+            }
         })?
         .body_json()
         .await

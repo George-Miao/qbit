@@ -1,5 +1,4 @@
 use std::{
-    borrow::{Borrow, Cow},
     fmt::{Display, Write},
     path::PathBuf,
     str::FromStr,
@@ -36,11 +35,11 @@ pub struct Tracker {
     pub tier: i64,
     /// Number of peers for current torrent, as reported by the tracker
     pub num_peers: i64,
-    /// Number of seeds for current torrent, asreported by the tracker
+    /// Number of seeds for current torrent, as reported by the tracker
     pub num_seeds: i64,
     /// Number of leeches for current torrent, as reported by the tracker
     pub num_leeches: i64,
-    /// Number of completed downlods for current torrent, as reported by the
+    /// Number of completed downloads for current torrent, as reported by the
     /// tracker
     pub num_downloaded: i64,
     /// Tracker message (there is no way of knowing what this message is - it's
