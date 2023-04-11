@@ -2,6 +2,7 @@
 #![cfg_attr(test, feature(lazy_cell))]
 
 use std::{
+    borrow::Borrow,
     collections::HashMap,
     path::{Path, PathBuf},
     sync::OnceLock,
@@ -11,21 +12,23 @@ use http_client::{
     http_types::{headers, Method, StatusCode, Url},
     Body, HttpClient, Request, Response,
 };
+pub mod model;
 use serde::Serialize;
+use serde_with::skip_serializing_none;
 use tap::TapFallible;
 use tracing::{debug, trace};
 
 use crate::{
     ext::*,
     model::{
-        AddTorrentArg, BuildInfo, Category, Credential, GetTorrentListArg, Hashes, Log, PeerLog,
-        PieceState, Preferences, Priority, Sep, SetTorrentSharedLimitArg, Torrent, TorrentContent,
-        TorrentProperty, TorrentSource, Tracker, TransferInfo, WebSeed,
+        AddTorrentArg, BuildInfo, Category, Credential, GetLogsArg, GetTorrentListArg, HashArg,
+        Hashes, HashesArg, Log, PeerLog, PeerSyncData, PieceState, Preferences, Priority, Sep,
+        SetTorrentSharedLimitArg, SyncData, Torrent, TorrentContent, TorrentProperty,
+        TorrentSource, Tracker, TransferInfo, WebSeed,
     },
 };
 
 mod ext;
-mod model;
 
 pub struct Api<C> {
     client: C,
@@ -81,135 +84,341 @@ impl<C: HttpClient> Api<C> {
     }
 
     pub async fn get_build_info(&self) -> Result<BuildInfo> {
-        todo!()
+        self.get("app/buildInfo", NONE)
+            .await?
+            .body_json()
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn get_preferences(&self) -> Result<Preferences> {
-        todo!()
+        self.get("app/preferences", NONE)
+            .await?
+            .body_json()
+            .await
+            .map_err(Into::into)
     }
 
-    pub async fn set_preferences(&self, preferences: Preferences) -> Result<Preferences> {
-        todo!()
+    pub async fn set_preferences(
+        &self,
+        preferences: impl Borrow<Preferences> + Send + Sync,
+    ) -> Result<()> {
+        self.post("app/setPreferences", NONE, Some(preferences.borrow()))
+            .await
+            .map_err(Into::into)
+            .map(|_| ())
     }
 
     pub async fn get_default_save_path(&self) -> Result<PathBuf> {
-        todo!()
+        self.get("app/defaultSavePath", NONE)
+            .await?
+            .body_string()
+            .await
+            .map_err(Into::into)
+            .map(PathBuf::from)
     }
 
-    pub async fn get_logs(&self) -> Result<Vec<Log>> {
-        todo!()
+    pub async fn get_logs(&self, arg: impl Borrow<GetLogsArg> + Send + Sync) -> Result<Vec<Log>> {
+        self.get("log/main", Some(arg.borrow()))
+            .await?
+            .body_json()
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn get_peer_logs(
         &self,
-        last_known_id: impl Into<Option<i64>> + Send,
+        last_known_id: impl Into<Option<i64>> + Send + Sync,
     ) -> Result<Vec<PeerLog>> {
-        todo!()
+        #[derive(Serialize)]
+        #[skip_serializing_none]
+        struct Arg {
+            last_known_id: Option<i64>,
+        }
+
+        self.get(
+            "log/peers",
+            Some(&Arg {
+                last_known_id: last_known_id.into(),
+            }),
+        )
+        .await?
+        .body_json()
+        .await
+        .map_err(Into::into)
     }
 
-    pub async fn sync(&self, rid: impl Into<Option<i64>> + Send) -> Result<Vec<PeerLog>> {
-        todo!()
+    pub async fn sync(&self, rid: impl Into<Option<i64>> + Send + Sync) -> Result<SyncData> {
+        #[derive(Serialize)]
+        #[skip_serializing_none]
+        struct Arg {
+            rid: Option<i64>,
+        }
+
+        self.get("sync/maindata", Some(&Arg { rid: rid.into() }))
+            .await?
+            .body_json()
+            .await
+            .map_err(Into::into)
     }
 
-    // pub async fn torrent_peers(&self, hash: impl AsRef<&str> + Send, rid: impl
-    // Into<Option<i64>> + Send) -> Result<Vec<PeerLog>> { todo!() }
+    pub async fn get_torrent_peers(
+        &self,
+        hash: impl AsRef<str> + Send + Sync,
+        rid: impl Into<Option<i64>> + Send + Sync,
+    ) -> Result<PeerSyncData> {
+        #[derive(Serialize)]
+        struct Arg<'a> {
+            hash: &'a str,
+            rid: Option<i64>,
+        }
+
+        self.get(
+            "sync/torrentPeers",
+            Some(&Arg {
+                hash: hash.as_ref(),
+                rid: rid.into(),
+            }),
+        )
+        .await
+        .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
+        .body_json()
+        .await
+        .map_err(Into::into)
+    }
+
     pub async fn get_transfer_info(&self) -> Result<TransferInfo> {
-        todo!()
+        self.get("transfer/info", NONE)
+            .await?
+            .body_json()
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn get_speed_limits_mode(&self) -> Result<bool> {
-        todo!()
+        self.get("transfer/speedLimitsMode", NONE)
+            .await?
+            .body_string()
+            .await
+            .map_err(Into::into)
+            .and_then(|s| match s.as_str() {
+                "0" => Ok(false),
+                "1" => Ok(true),
+                _ => Err(Error::BadResponse {
+                    explain: "Received non-number response body on `transfer/speedLimitsMode`",
+                }),
+            })
     }
 
-    pub async fn toggle_speed_limits_mode(&self) -> Result<bool> {
-        todo!()
+    pub async fn toggle_speed_limits_mode(&self) -> Result<()> {
+        self.get("transfer/toggleSpeedLimitsMode", NONE)
+            .await
+            .map(|_| ())
     }
 
-    pub async fn get_download_limit(&self) -> Result<Option<u64>> {
-        todo!()
+    pub async fn get_download_limit(&self) -> Result<u64> {
+        self.get("transfer/downloadLimit", NONE)
+            .await?
+            .body_string()
+            .await
+            .map_err(Into::into)
+            .and_then(|s| {
+                s.parse().map_err(|_| Error::BadResponse {
+                    explain: "Received non-number response body on `transfer/downloadLimit`",
+                })
+            })
     }
 
     pub async fn set_download_limit(&self, limit: u64) -> Result<()> {
-        todo!()
+        #[derive(Serialize)]
+        struct Arg {
+            limit: u64,
+        }
+
+        self.get("transfer/setDownloadLimit", Some(&Arg { limit }))
+            .await
+            .map(|_| ())
     }
 
-    pub async fn get_upload_limit(&self) -> Result<Option<u64>> {
-        todo!()
+    pub async fn get_upload_limit(&self) -> Result<u64> {
+        self.get("transfer/uploadLimit", NONE)
+            .await?
+            .body_string()
+            .await
+            .map_err(Into::into)
+            .and_then(|s| {
+                s.parse().map_err(|_| Error::BadResponse {
+                    explain: "Received non-number response body on `transfer/uploadLimit`",
+                })
+            })
     }
 
     pub async fn set_upload_limit(&self, limit: u64) -> Result<()> {
-        todo!()
+        #[derive(Serialize)]
+        struct Arg {
+            limit: u64,
+        }
+
+        self.get("transfer/setUploadLimit", Some(&Arg { limit }))
+            .await
+            .map(|_| ())
     }
 
-    pub async fn ban_peers(&self, peers: impl Into<Sep<String, '|'>> + Send) -> Result<()> {
-        todo!()
+    pub async fn ban_peers(&self, peers: impl Into<Sep<String, '|'>> + Send + Sync) -> Result<()> {
+        #[derive(Serialize)]
+        struct Arg {
+            peers: String,
+        }
+
+        self.get(
+            "transfer/banPeers",
+            Some(&Arg {
+                peers: peers.into().to_string(),
+            }),
+        )
+        .await
+        .map(|_| ())
     }
 
     pub async fn get_torrent_list(&self, arg: GetTorrentListArg) -> Result<Vec<Torrent>> {
-        todo!()
+        self.get("torrents/info", Some(&arg))
+            .await?
+            .body_json()
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn get_torrent_properties(
         &self,
-        hash: impl AsRef<str> + Send,
+        hash: impl AsRef<str> + Sync + Send + Sync,
     ) -> Result<TorrentProperty> {
-        todo!()
+        self.get("torrents/properties", Some(&HashArg::new(hash.as_ref())))
+            .await
+            .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
+            .body_json()
+            .await
+            .map_err(Into::into)
     }
 
-    pub async fn get_torrent_trackers(&self, hash: impl AsRef<str> + Send) -> Result<Vec<Tracker>> {
-        todo!()
+    pub async fn get_torrent_trackers(
+        &self,
+        hash: impl AsRef<str> + Send + Sync,
+    ) -> Result<Vec<Tracker>> {
+        self.get("torrents/trackers", Some(&HashArg::new(hash.as_ref())))
+            .await
+            .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
+            .body_json()
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn get_torrent_web_seeds(
         &self,
-        hash: impl AsRef<str> + Send,
+        hash: impl AsRef<str> + Send + Sync,
     ) -> Result<Vec<WebSeed>> {
-        todo!()
+        self.get("torrents/webseeds", Some(&HashArg::new(hash.as_ref())))
+            .await
+            .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
+            .body_json()
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn get_torrent_contents(
         &self,
-        hash: impl AsRef<str> + Send,
-        indexes: impl Into<Sep<String, '|'>> + Send,
+        hash: impl AsRef<str> + Send + Sync,
+        indexes: impl Into<Option<Sep<String, '|'>>> + Send + Sync,
     ) -> Result<Vec<TorrentContent>> {
-        todo!()
+        #[derive(Serialize)]
+        struct Arg<'a> {
+            hash: &'a str,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            indexes: Option<String>,
+        }
+
+        self.get(
+            "torrents/files",
+            Some(&Arg {
+                hash: hash.as_ref(),
+                indexes: indexes.into().map(|s| s.to_string()),
+            }),
+        )
+        .await
+        .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
+        .body_json()
+        .await
+        .map_err(Into::into)
     }
 
     pub async fn get_torrent_pieces_states(
         &self,
-        hash: impl AsRef<str> + Send,
+        hash: impl AsRef<str> + Send + Sync,
     ) -> Result<Vec<PieceState>> {
-        todo!()
+        self.get("torrents/pieceStates", Some(&HashArg::new(hash.as_ref())))
+            .await
+            .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
+            .body_json()
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn get_torrent_pieces_hashes(
         &self,
-        hash: impl AsRef<str> + Send,
+        hash: impl AsRef<str> + Send + Sync,
     ) -> Result<Vec<String>> {
-        todo!()
+        self.get("torrents/pieceHashes", Some(&HashArg::new(hash.as_ref())))
+            .await
+            .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
+            .body_json()
+            .await
+            .map_err(Into::into)
     }
 
-    pub async fn pause_torrents(&self, hashes: impl Into<Hashes> + Send) -> Result<()> {
-        todo!()
+    pub async fn pause_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
+        self.get("torrents/pause", Some(&HashesArg::new(hashes)))
+            .await?
+            .body_json()
+            .await
+            .map_err(Into::into)
     }
 
-    pub async fn resume_torrents(&self, hashes: impl Into<Hashes> + Send) -> Result<()> {
-        todo!()
+    pub async fn resume_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
+        self.get("torrents/resume", Some(&HashesArg::new(hashes)))
+            .await?
+            .body_json()
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn delete_torrents(
         &self,
-        hashes: impl Into<Hashes> + Send,
-        delete_files: impl Into<Option<bool>> + Send,
+        hashes: impl Into<Hashes> + Send + Sync,
+        delete_files: impl Into<Option<bool>> + Send + Sync,
     ) -> Result<()> {
+        #[derive(Serialize)]
+        #[skip_serializing_none]
+        struct Arg {
+            hashes: Hashes,
+            delete_files: Option<bool>,
+        }
+        self.get(
+            "torrents/delete",
+            Some(&Arg {
+                hashes: hashes.into(),
+                delete_files: delete_files.into(),
+            }),
+        )
+        .await?
+        .body_json()
+        .await
+        .map_err(Into::into)
+    }
+
+    pub async fn recheck_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
         todo!()
     }
 
-    pub async fn recheck_torrents(&self, hashes: impl Into<Hashes> + Send) -> Result<()> {
-        todo!()
-    }
-
-    pub async fn reannounce_torrents(&self, hashes: impl Into<Hashes> + Send) -> Result<()> {
+    pub async fn reannounce_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
         todo!()
     }
 
@@ -223,15 +432,15 @@ impl<C: HttpClient> Api<C> {
 
     pub async fn add_trackers(
         &self,
-        hash: impl AsRef<str> + Send,
-        urls: impl Into<Sep<String, '\n'>> + Send,
+        hash: impl AsRef<str> + Send + Sync,
+        urls: impl Into<Sep<String, '\n'>> + Send + Sync,
     ) -> Result<()> {
         todo!()
     }
 
     pub async fn edit_trackers(
         &self,
-        hash: impl AsRef<str> + Send,
+        hash: impl AsRef<str> + Send + Sync,
         orig_url: Url,
         new_url: Url,
     ) -> Result<()> {
@@ -240,40 +449,40 @@ impl<C: HttpClient> Api<C> {
 
     pub async fn remove_trackers(
         &self,
-        hash: impl AsRef<str> + Send,
-        url: impl AsRef<str> + Send,
+        hash: impl AsRef<str> + Send + Sync,
+        url: impl AsRef<str> + Send + Sync,
     ) -> Result<()> {
         todo!()
     }
 
     pub async fn add_peers(
         &self,
-        hash: impl AsRef<str> + Send,
-        peers: impl Into<Sep<String, '|'>> + Send,
+        hash: impl AsRef<str> + Send + Sync,
+        peers: impl Into<Sep<String, '|'>> + Send + Sync,
     ) -> Result<()> {
         todo!()
     }
 
-    pub async fn increase_priority(&self, hashes: impl Into<Hashes> + Send) -> Result<()> {
+    pub async fn increase_priority(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
         todo!()
     }
 
-    pub async fn decrease_priority(&self, hashes: impl Into<Hashes> + Send) -> Result<()> {
+    pub async fn decrease_priority(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
         todo!()
     }
 
-    pub async fn maximal_priority(&self, hashes: impl Into<Hashes> + Send) -> Result<()> {
+    pub async fn maximal_priority(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
         todo!()
     }
 
-    pub async fn minimal_priority(&self, hashes: impl Into<Hashes> + Send) -> Result<()> {
+    pub async fn minimal_priority(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
         todo!()
     }
 
     pub async fn set_file_priority(
         &self,
-        hash: impl AsRef<str> + Send,
-        indexes: impl Into<Sep<i64, '|'>> + Send,
+        hash: impl AsRef<str> + Send + Sync,
+        indexes: impl Into<Sep<i64, '|'>> + Send + Sync,
         priority: Priority,
     ) -> Result<()> {
         todo!()
@@ -281,14 +490,14 @@ impl<C: HttpClient> Api<C> {
 
     pub async fn get_torrent_download_limit(
         &self,
-        hashes: impl Into<Hashes> + Send,
+        hashes: impl Into<Hashes> + Send + Sync,
     ) -> Result<HashMap<String, u64>> {
         todo!()
     }
 
     pub async fn set_torrent_download_limit(
         &self,
-        hashes: impl Into<Hashes> + Send,
+        hashes: impl Into<Hashes> + Send + Sync,
         limit: u64,
     ) -> Result<()> {
         todo!()
@@ -300,14 +509,14 @@ impl<C: HttpClient> Api<C> {
 
     pub async fn get_torrent_upload_limit(
         &self,
-        hashes: impl Into<Hashes> + Send,
+        hashes: impl Into<Hashes> + Send + Sync,
     ) -> Result<HashMap<String, u64>> {
         todo!()
     }
 
     pub async fn set_torrent_upload_limit(
         &self,
-        hashes: impl Into<Hashes> + Send,
+        hashes: impl Into<Hashes> + Send + Sync,
         limit: u64,
     ) -> Result<()> {
         todo!()
@@ -315,24 +524,24 @@ impl<C: HttpClient> Api<C> {
 
     pub async fn set_torrent_location(
         &self,
-        hashes: impl Into<Hashes> + Send,
-        location: impl AsRef<str> + Send,
+        hashes: impl Into<Hashes> + Send + Sync,
+        location: impl AsRef<str> + Send + Sync,
     ) -> Result<()> {
         todo!()
     }
 
     pub async fn set_torrent_name(
         &self,
-        hash: impl AsRef<str> + Send,
-        name: impl AsRef<str> + Send,
+        hash: impl AsRef<str> + Send + Sync,
+        name: impl AsRef<str> + Send + Sync,
     ) -> Result<()> {
         todo!()
     }
 
     pub async fn set_torrent_category(
         &self,
-        hashes: impl Into<Hashes> + Send,
-        category: impl AsRef<str> + Send,
+        hashes: impl Into<Hashes> + Send + Sync,
+        category: impl AsRef<str> + Send + Sync,
     ) -> Result<()> {
         todo!()
     }
@@ -343,38 +552,38 @@ impl<C: HttpClient> Api<C> {
 
     pub async fn add_category(
         &self,
-        category: impl AsRef<str> + Send,
-        save_path: impl AsRef<Path> + Send,
+        category: impl AsRef<str> + Send + Sync,
+        save_path: impl AsRef<Path> + Send + Sync,
     ) -> Result<()> {
         todo!()
     }
 
     pub async fn edit_category(
         &self,
-        category: impl AsRef<str> + Send,
-        save_path: impl AsRef<Path> + Send,
+        category: impl AsRef<str> + Send + Sync,
+        save_path: impl AsRef<Path> + Send + Sync,
     ) -> Result<()> {
         todo!()
     }
 
     pub async fn remove_categories(
         &self,
-        categories: impl Into<Sep<String, '\n'>> + Send,
+        categories: impl Into<Sep<String, '\n'>> + Send + Sync,
     ) -> Result<()> {
         todo!()
     }
 
     pub async fn add_torrent_tags(
         &self,
-        hashes: impl Into<Hashes> + Send,
-        tags: impl Into<Sep<String, '\n'>> + Send,
+        hashes: impl Into<Hashes> + Send + Sync,
+        tags: impl Into<Sep<String, '\n'>> + Send + Sync,
     ) -> Result<()> {
         todo!()
     }
 
     pub async fn remove_torrent_tags(
         &self,
-        hashes: impl Into<Hashes> + Send,
+        hashes: impl Into<Hashes> + Send + Sync,
         tags: Option<impl Into<Sep<String, '\n'>> + Send>,
     ) -> Result<()> {
         todo!()
@@ -384,17 +593,17 @@ impl<C: HttpClient> Api<C> {
         todo!()
     }
 
-    pub async fn create_tags(&self, tags: impl Into<Sep<String, ','>> + Send) -> Result<()> {
+    pub async fn create_tags(&self, tags: impl Into<Sep<String, ','>> + Send + Sync) -> Result<()> {
         todo!()
     }
 
-    pub async fn delete_tags(&self, tags: impl Into<Sep<String, ','>> + Send) -> Result<()> {
+    pub async fn delete_tags(&self, tags: impl Into<Sep<String, ','>> + Send + Sync) -> Result<()> {
         todo!()
     }
 
     pub async fn set_auto_management(
         &self,
-        hashes: impl Into<Hashes> + Send,
+        hashes: impl Into<Hashes> + Send + Sync,
         enable: bool,
     ) -> Result<()> {
         todo!()
@@ -402,21 +611,21 @@ impl<C: HttpClient> Api<C> {
 
     pub async fn toggle_torrent_sequential_download(
         &self,
-        hashes: impl Into<Hashes> + Send,
+        hashes: impl Into<Hashes> + Send + Sync,
     ) -> Result<()> {
         todo!()
     }
 
     pub async fn toggle_first_last_piece_priority(
         &self,
-        hashes: impl Into<Hashes> + Send,
+        hashes: impl Into<Hashes> + Send + Sync,
     ) -> Result<()> {
         todo!()
     }
 
     pub async fn set_force_start(
         &self,
-        hashes: impl Into<Hashes> + Send,
+        hashes: impl Into<Hashes> + Send + Sync,
         value: bool,
     ) -> Result<()> {
         todo!()
@@ -424,7 +633,7 @@ impl<C: HttpClient> Api<C> {
 
     pub async fn set_super_seeding(
         &self,
-        hashes: impl Into<Hashes> + Send,
+        hashes: impl Into<Hashes> + Send + Sync,
         value: bool,
     ) -> Result<()> {
         todo!()
@@ -432,18 +641,18 @@ impl<C: HttpClient> Api<C> {
 
     pub async fn rename_file(
         &self,
-        hash: impl AsRef<str> + Send,
-        old_path: impl AsRef<Path> + Send,
-        new_path: impl AsRef<Path> + Send,
+        hash: impl AsRef<str> + Send + Sync,
+        old_path: impl AsRef<Path> + Send + Sync,
+        new_path: impl AsRef<Path> + Send + Sync,
     ) -> Result<()> {
         todo!()
     }
 
     pub async fn rename_folder(
         &self,
-        hash: impl AsRef<str> + Send,
-        old_path: impl AsRef<Path> + Send,
-        new_path: impl AsRef<Path> + Send,
+        hash: impl AsRef<str> + Send + Sync,
+        old_path: impl AsRef<Path> + Send + Sync,
+        new_path: impl AsRef<Path> + Send + Sync,
     ) -> Result<()> {
         todo!()
     }
@@ -465,7 +674,7 @@ impl<C: HttpClient> Api<C> {
                 .client
                 .send(req)
                 .await?
-                .handle_status(|code| match code as _ {
+                .map_status(|code| match code as _ {
                     StatusCode::Forbidden => Some(Error::ApiError(ApiError::IpBanned)),
                     _ => None,
                 })?
@@ -509,8 +718,11 @@ impl<C: HttpClient> Api<C> {
 
         self.client
             .send(req)
-            .await
-            .map_err(Into::into)
+            .await?
+            .map_status(|code| match code as _ {
+                StatusCode::Forbidden => Some(Error::ApiError(ApiError::NotLoggedIn)),
+                _ => None,
+            })
             .tap_ok(|res| trace!(?res))
     }
 
@@ -557,11 +769,11 @@ pub enum ApiError {
     #[error("User's IP is banned for too many failed login attempts")]
     IpBanned,
 
-    #[error("API routes requires authentication")]
-    Unauthorized,
+    #[error("API routes requires login, try again")]
+    NotLoggedIn,
 
-    #[error("Torrent hash not found: {0}")]
-    TorrentHashNotFound(String),
+    #[error("Torrent not found")]
+    TorrentNotFound,
 }
 
 impl From<http_client::Error> for Error {
@@ -618,5 +830,15 @@ mod test {
             version = client.get_version().await.unwrap(),
             "Login success"
         );
+    }
+
+    #[tokio::test]
+    async fn test_a() {
+        let client = prepare().await.unwrap();
+
+        client
+            .set_preferences(&Preferences::default())
+            .await
+            .unwrap();
     }
 }

@@ -1,5 +1,7 @@
 use std::net::IpAddr;
 
+use serde_with::skip_serializing_none;
+
 #[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq)]
 
 pub struct Log {
@@ -46,4 +48,20 @@ pub enum LogLevel {
     Info     = 2,
     Warning  = 4,
     Critical = 8,
+}
+
+#[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
+#[skip_serializing_none]
+pub struct GetLogsArg {
+    /// Include normal messages (default: `true`)
+    pub normal: Option<bool>,
+    /// Include info messages (default: `true`)
+    pub info: Option<bool>,
+    /// Include warning messages (default: `true`)
+    pub warning: Option<bool>,
+    /// Include critical messages (default: `true`)
+    pub critical: Option<bool>,
+    /// Exclude messages with "message id" <= `last_known_id` (default: `-1`)
+    pub last_known_id: Option<i64>,
 }

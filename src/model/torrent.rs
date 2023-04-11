@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display};
 
 use http_client::http_types::Url;
 use serde::Serialize;
-use serde_with::SerializeDisplay;
+use serde_with::{skip_serializing_none, SerializeDisplay};
 
 use crate::model::Sep;
 
@@ -350,12 +350,13 @@ impl Display for Hashes {
 
 #[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize)]
+#[skip_serializing_none]
 pub struct GetTorrentListArg {
     /// Filter torrent list by state. Allowed state filters: `all`,
     /// `downloading`, `seeding`, `completed`, `paused`, `active`, `inactive`,
     /// `resumed`, `stalled`, `stalled_uploading`, `stalled_downloading`,
     /// `errored`
-    pub filter: Option<AddTorrentArg>,
+    pub filter: Option<TorrentFilter>,
     /// Get torrents with the given category (empty string means "without category"; no "category" parameter means "any category" <- broken until [#11748](https://github.com/qbittorrent/qBittorrent/issues/11748) is resolved). Remember to URL-encode the category name. For example, `My category` becomes `My%20category`
     pub category: Option<String>,
     /// Get torrents with the given tag (empty string means "without tag"; no
@@ -385,6 +386,7 @@ pub enum TorrentSource {
 
 #[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize)]
+#[skip_serializing_none]
 pub struct AddTorrentArg {
     /// Download folder
     pub savepath: Option<String>,
@@ -434,9 +436,9 @@ pub struct AddTorrentArg {
 #[serde(rename_all = "camelCase")]
 pub struct SetTorrentSharedLimitArg {
     #[cfg_attr(feature = "builder", builder(setter(into)))]
-    hashes: Hashes,
-    ratio_limit: Option<RatioLimit>,
-    seeding_time_limit: Option<SeedingTimeLimit>,
+    pub hashes: Hashes,
+    pub ratio_limit: Option<RatioLimit>,
+    pub seeding_time_limit: Option<SeedingTimeLimit>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
@@ -476,6 +478,30 @@ impl Serialize for SeedingTimeLimit {
             Self::Global => serializer.serialize_i64(-2),
             Self::NoLimit => serializer.serialize_i64(-1),
             Self::Limited(limit) => serializer.serialize_u64(*limit),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub(crate) struct HashArg<'a> {
+    hash: &'a str,
+}
+
+impl<'a> HashArg<'a> {
+    pub(crate) fn new(hash: &'a str) -> Self {
+        Self { hash }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub(crate) struct HashesArg {
+    hashes: Hashes,
+}
+
+impl HashesArg {
+    pub(crate) fn new(hashes: impl Into<Hashes> + Send + Sync) -> Self {
+        Self {
+            hashes: hashes.into(),
         }
     }
 }

@@ -1,11 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, net::SocketAddr};
 
 use serde_value::Value;
 
 use crate::model::{Category, Torrent};
 
 #[derive(Debug, Clone, serde::Deserialize, PartialEq)]
-pub struct Maindata {
+pub struct SyncData {
     /// Response ID
     pub rid: i64,
     /// Whether the response contains all the data or partial data
@@ -24,4 +24,30 @@ pub struct Maindata {
     pub tags_removed: Option<Vec<String>>,
     /// Global transfer info
     pub server_state: Option<HashMap<String, Value>>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, PartialEq)]
+pub struct PeerSyncData {
+    pub full_update: bool,
+    pub peers: HashMap<SocketAddr, Peer>,
+    pub rid: i64,
+    pub show_flags: bool,
+}
+#[derive(Debug, Clone, serde::Deserialize, PartialEq)]
+pub struct Peer {
+    pub client: Option<String>,
+    pub connection: Option<String>,
+    pub country: Option<String>,
+    pub country_code: Option<String>,
+    pub dl_speed: Option<u64>,
+    pub downloaded: Option<u64>,
+    pub files: Option<String>,
+    pub flags: Option<String>,
+    pub flags_desc: Option<String>,
+    pub ip: Option<String>,
+    pub port: Option<u16>,
+    pub progress: Option<u64>,
+    pub relevance: Option<u64>,
+    pub up_speed: Option<u64>,
+    pub uploaded: Option<u64>,
 }

@@ -1,8 +1,7 @@
 use http_client::{
-    http_types::{cookies::Cookie as HttpCookie, headers::SET_COOKIE, StatusCode},
+    http_types::{headers::SET_COOKIE, StatusCode},
     Response,
 };
-use tap::Pipe;
 
 use crate::{ApiError, Error};
 
@@ -15,7 +14,7 @@ pub trait FromResponse {
 pub trait ResponseExt: Sized {
     fn extract<T: FromResponse>(&self) -> Result<T, Error>;
 
-    fn handle_status<F: FnOnce(StatusCode) -> Option<Error>>(self, f: F) -> Result<Self, Error>;
+    fn map_status<F: FnOnce(StatusCode) -> Option<Error>>(self, f: F) -> Result<Self, Error>;
 }
 
 impl ResponseExt for Response {
@@ -23,7 +22,7 @@ impl ResponseExt for Response {
         T::from_response(self)
     }
 
-    fn handle_status<F: FnOnce(StatusCode) -> Option<Error>>(self, f: F) -> Result<Self, Error> {
+    fn map_status<F: FnOnce(StatusCode) -> Option<Error>>(self, f: F) -> Result<Self, Error> {
         let status = self.status();
 
         if status.is_success() {
@@ -32,13 +31,22 @@ impl ResponseExt for Response {
             match f(status) {
                 Some(err) => Err(err),
                 None => match status {
-                    StatusCode::Forbidden => Err(Error::ApiError(ApiError::Unauthorized)),
-                    code => Err(Error::UnknownHttpCode(code)),
+                    StatusCode::Forbidden => Err(Error::ApiError(ApiError::NotLoggedIn)),
+                    _ => Ok(self),
                 },
             }
         }
     }
 }
+
+/// Handle 404 returned by APIs with torrent hash as a parameter
+pub const TORRENT_NOT_FOUND: fn(StatusCode) -> Option<Error> = |s| {
+    if s == StatusCode::NotFound {
+        Some(Error::ApiError(ApiError::TorrentNotFound))
+    } else {
+        None
+    }
+};
 
 pub struct Cookie(pub String);
 
