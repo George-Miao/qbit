@@ -1,4 +1,9 @@
-use std::{path::PathBuf, str::FromStr};
+use std::{
+    borrow::{Borrow, Cow},
+    fmt::{Display, Write},
+    path::PathBuf,
+    str::FromStr,
+};
 
 use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeFromStr, SerializeDisplay};
@@ -86,9 +91,37 @@ impl<T: FromStr, const C: char> FromStr for Sep<T, C> {
     }
 }
 
-impl<T: ToString, const C: char> ToString for Sep<T, C> {
-    fn to_string(&self) -> String {
-        self.0.iter().map(ToString::to_string).collect()
+/// A wrapper around `str` that ensures that the string is non-empty.
+pub struct NonEmptyStr<T>(T);
+
+impl<T: AsRef<str>> NonEmptyStr<T> {
+    pub fn as_str(&self) -> &str {
+        self.0.as_ref()
+    }
+
+    pub fn new(s: T) -> Option<Self> {
+        if s.as_ref().is_empty() {
+            None
+        } else {
+            Some(NonEmptyStr(s))
+        }
+    }
+}
+
+impl<T: Display, const C: char> Display for Sep<T, C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.0.as_slice() {
+            [] => Ok(()),
+            [x] => x.fmt(f),
+            [x, xs @ ..] => {
+                x.fmt(f)?;
+                for x in xs {
+                    f.write_char(C)?;
+                    x.fmt(f)?;
+                }
+                Ok(())
+            }
+        }
     }
 }
 
@@ -96,4 +129,19 @@ impl<V: Into<Vec<T>>, T, const C: char> From<V> for Sep<T, C> {
     fn from(inner: V) -> Self {
         Sep(inner.into())
     }
+}
+
+#[test]
+fn test_sep() {
+    let sep = Sep::<u8, '|'>::from(vec![1, 2, 3]);
+    assert_eq!(sep.to_string(), "1|2|3");
+
+    let sep = Sep::<u8, '\n'>::from(vec![1, 2, 3]);
+    assert_eq!(sep.to_string(), "1\n2\n3");
+
+    let sep = Sep::<u8, '|'>::from(vec![1]);
+    assert_eq!(sep.to_string(), "1");
+
+    let sep = Sep::<u8, '|'>::from(vec![]);
+    assert_eq!(sep.to_string(), "");
 }

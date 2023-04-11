@@ -9,7 +9,7 @@ use std::{
 };
 
 use http_client::{
-    http_types::{headers, Method, StatusCode, Url},
+    http_types::{headers, Method, Status, StatusCode, Url},
     Body, HttpClient, Request, Response,
 };
 pub mod model;
@@ -22,9 +22,9 @@ use crate::{
     ext::*,
     model::{
         AddTorrentArg, BuildInfo, Category, Credential, GetLogsArg, GetTorrentListArg, HashArg,
-        Hashes, HashesArg, Log, PeerLog, PeerSyncData, PieceState, Preferences, Priority, Sep,
-        SetTorrentSharedLimitArg, SyncData, Torrent, TorrentContent, TorrentProperty,
-        TorrentSource, Tracker, TransferInfo, WebSeed,
+        Hashes, HashesArg, Log, NonEmptyStr, PeerLog, PeerSyncData, PieceState, Preferences,
+        Priority, Sep, SetTorrentSharedLimitArg, SyncData, Torrent, TorrentContent,
+        TorrentProperty, TorrentSource, Tracker, TransferInfo, WebSeed,
     },
 };
 
@@ -415,11 +415,19 @@ impl<C: HttpClient> Api<C> {
     }
 
     pub async fn recheck_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        todo!()
+        self.get("torrents/recheck", Some(&HashesArg::new(hashes)))
+            .await?
+            .body_json()
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn reannounce_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        todo!()
+        self.get("torrents/reannounce", Some(&HashesArg::new(hashes)))
+            .await?
+            .body_json()
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn add_torrent(
@@ -435,7 +443,24 @@ impl<C: HttpClient> Api<C> {
         hash: impl AsRef<str> + Send + Sync,
         urls: impl Into<Sep<String, '\n'>> + Send + Sync,
     ) -> Result<()> {
-        todo!()
+        #[derive(Serialize)]
+        struct Arg<'a> {
+            hash: &'a str,
+            urls: String,
+        }
+
+        self.get(
+            "torrents/addTrackers",
+            Some(&Arg {
+                hash: hash.as_ref(),
+                urls: urls.into().to_string(),
+            }),
+        )
+        .await
+        .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
+        .body_json()
+        .await
+        .map_err(Into::into)
     }
 
     pub async fn edit_trackers(
@@ -444,39 +469,144 @@ impl<C: HttpClient> Api<C> {
         orig_url: Url,
         new_url: Url,
     ) -> Result<()> {
-        todo!()
+        #[derive(Serialize)]
+        struct EditTrackerArg<'a> {
+            hash: &'a str,
+            orig_url: Url,
+            new_url: Url,
+        }
+        self.get(
+            "torrents/editTracker",
+            Some(&EditTrackerArg {
+                hash: hash.as_ref(),
+                orig_url,
+                new_url,
+            }),
+        )
+        .await
+        .and_then(|r| {
+            r.map_status(|c| {
+                use StatusCode::*;
+                match c {
+                    BadRequest => Some(Error::ApiError(ApiError::InvalidTrackerUrl)),
+                    NotFound => Some(Error::ApiError(ApiError::TorrentNotFound)),
+                    Conflict => Some(Error::ApiError(
+                        ApiError::UrlAlreadyExistedOrOriginalUrlNotFound,
+                    )),
+                    _ => None,
+                }
+            })
+        })?
+        .body_json()
+        .await
+        .map_err(Into::into)
     }
 
     pub async fn remove_trackers(
         &self,
         hash: impl AsRef<str> + Send + Sync,
-        url: impl AsRef<str> + Send + Sync,
+        urls: impl Into<Sep<Url, '|'>> + Send + Sync,
     ) -> Result<()> {
-        todo!()
+        #[derive(Serialize)]
+        struct Arg<'a> {
+            hash: &'a str,
+            urls: Sep<Url, '|'>,
+        }
+
+        self.get(
+            "torrents/removeTrackers",
+            Some(&Arg {
+                hash: hash.as_ref(),
+                urls: urls.into(),
+            }),
+        )
+        .await
+        .and_then(|r| r.map_status(TORRENT_NOT_FOUND))
+        .map_err(Into::into)
+        .map(|_| ())
     }
 
     pub async fn add_peers(
         &self,
-        hash: impl AsRef<str> + Send + Sync,
+        hashes: impl Into<Hashes> + Send + Sync,
         peers: impl Into<Sep<String, '|'>> + Send + Sync,
     ) -> Result<()> {
-        todo!()
+        #[derive(Serialize)]
+        struct AddPeersArg {
+            hash: String,
+            peers: Sep<String, '|'>,
+        }
+
+        self.get(
+            "torrents/addPeers",
+            Some(&AddPeersArg {
+                hash: hashes.into().to_string(),
+                peers: peers.into(),
+            }),
+        )
+        .await
+        .and_then(|r| {
+            r.map_status(|c| {
+                if c == StatusCode::BadRequest {
+                    Some(Error::ApiError(ApiError::InvalidPeers))
+                } else {
+                    None
+                }
+            })
+        })
+        .map(|_| ())
     }
 
     pub async fn increase_priority(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        todo!()
+        self.get("torrents/increasePrio", Some(&HashesArg::new(hashes)))
+            .await?
+            .map_status(|c| {
+                if c == StatusCode::Conflict {
+                    Some(Error::ApiError(ApiError::QueueingDisabled))
+                } else {
+                    None
+                }
+            })?;
+        Ok(())
     }
 
     pub async fn decrease_priority(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        todo!()
+        self.get("torrents/decreasePrio", Some(&HashesArg::new(hashes)))
+            .await?
+            .map_status(|c| {
+                if c == StatusCode::Conflict {
+                    Some(Error::ApiError(ApiError::QueueingDisabled))
+                } else {
+                    None
+                }
+            })?;
+        Ok(())
     }
 
     pub async fn maximal_priority(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        todo!()
+        self.get("torrents/topPrio", Some(&HashesArg::new(hashes)))
+            .await?
+            .map_status(|c| {
+                if c == StatusCode::Conflict {
+                    Some(Error::ApiError(ApiError::QueueingDisabled))
+                } else {
+                    None
+                }
+            })?;
+        Ok(())
     }
 
     pub async fn minimal_priority(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        todo!()
+        self.get("torrents/bottomPrio", Some(&HashesArg::new(hashes)))
+            .await?
+            .map_status(|c| {
+                if c == StatusCode::Conflict {
+                    Some(Error::ApiError(ApiError::QueueingDisabled))
+                } else {
+                    None
+                }
+            })?;
+        Ok(())
     }
 
     pub async fn set_file_priority(
@@ -485,14 +615,44 @@ impl<C: HttpClient> Api<C> {
         indexes: impl Into<Sep<i64, '|'>> + Send + Sync,
         priority: Priority,
     ) -> Result<()> {
-        todo!()
+        #[derive(Serialize)]
+        struct SetFilePriorityArg<'a> {
+            hash: &'a str,
+            id: Sep<i64, '|'>,
+            priority: Priority,
+        }
+
+        self.get(
+            "torrents/filePrio",
+            Some(&SetFilePriorityArg {
+                hash: hash.as_ref(),
+                id: indexes.into(),
+                priority,
+            }),
+        )
+        .await?
+        .map_status(|c| {
+            use StatusCode::*;
+
+            match c {
+                BadRequest => panic!("Invalid priority or id. This is a bug."),
+                NotFound => Some(Error::ApiError(ApiError::TorrentNotFound)),
+                Conflict => Some(Error::ApiError(ApiError::MetaNotDownloadedOrIdNotFound)),
+                _ => None,
+            }
+        })?;
+        Ok(())
     }
 
     pub async fn get_torrent_download_limit(
         &self,
         hashes: impl Into<Hashes> + Send + Sync,
     ) -> Result<HashMap<String, u64>> {
-        todo!()
+        self.get("torrents/downloadLimit", Some(&HashesArg::new(hashes)))
+            .await?
+            .body_json()
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn set_torrent_download_limit(
@@ -500,18 +660,41 @@ impl<C: HttpClient> Api<C> {
         hashes: impl Into<Hashes> + Send + Sync,
         limit: u64,
     ) -> Result<()> {
-        todo!()
+        #[derive(Serialize)]
+        struct Arg {
+            hashes: String,
+            limit: u64,
+        }
+
+        self.get(
+            "torrents/downloadLimit",
+            Some(&Arg {
+                hashes: hashes.into().to_string(),
+                limit,
+            }),
+        )
+        .await
+        .map(|_| ())
     }
 
-    pub async fn set_torrent_shared_limit(&self, arg: SetTorrentSharedLimitArg) -> Result<()> {
-        todo!()
+    pub async fn set_torrent_shared_limit(
+        &self,
+        arg: impl Borrow<SetTorrentSharedLimitArg> + Send + Sync,
+    ) -> Result<()> {
+        self.get("torrents/setShareLimits", Some(arg.borrow()))
+            .await
+            .map(|_| ())
     }
 
     pub async fn get_torrent_upload_limit(
         &self,
         hashes: impl Into<Hashes> + Send + Sync,
     ) -> Result<HashMap<String, u64>> {
-        todo!()
+        self.get("torrents/uploadLimit", Some(&HashesArg::new(hashes)))
+            .await?
+            .body_json()
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn set_torrent_upload_limit(
@@ -519,23 +702,84 @@ impl<C: HttpClient> Api<C> {
         hashes: impl Into<Hashes> + Send + Sync,
         limit: u64,
     ) -> Result<()> {
-        todo!()
+        #[derive(Serialize)]
+        struct Arg {
+            hashes: String,
+            limit: u64,
+        }
+
+        self.get(
+            "torrents/uploadLimit",
+            Some(&Arg {
+                hashes: hashes.into().to_string(),
+                limit,
+            }),
+        )
+        .await
+        .map(|_| ())
     }
 
     pub async fn set_torrent_location(
         &self,
         hashes: impl Into<Hashes> + Send + Sync,
-        location: impl AsRef<str> + Send + Sync,
+        location: impl AsRef<Path> + Send + Sync,
     ) -> Result<()> {
-        todo!()
+        #[derive(Serialize)]
+        struct Arg<'a> {
+            hashes: String,
+            location: &'a Path,
+        }
+
+        self.get(
+            "torrents/setLocation",
+            Some(&Arg {
+                hashes: hashes.into().to_string(),
+                location: location.as_ref(),
+            }),
+        )
+        .await?
+        .map_status(|c| {
+            use StatusCode::*;
+
+            match c {
+                BadRequest => Some(Error::ApiError(ApiError::SavePathEmpty)),
+                Forbidden => Some(Error::ApiError(ApiError::NoWriteAccess)),
+                Conflict => Some(Error::ApiError(ApiError::UnableToCreateDir)),
+                _ => None,
+            }
+        })
+        .map(|_| ())
     }
 
-    pub async fn set_torrent_name(
+    pub async fn set_torrent_name<T: AsRef<str> + Send + Sync>(
         &self,
         hash: impl AsRef<str> + Send + Sync,
-        name: impl AsRef<str> + Send + Sync,
+        name: NonEmptyStr<T>,
     ) -> Result<()> {
-        todo!()
+        #[derive(Serialize)]
+        struct RenameArg<'a> {
+            hash: &'a str,
+            name: &'a str,
+        }
+
+        self.get(
+            "torrents/rename",
+            Some(&RenameArg {
+                hash: hash.as_ref(),
+                name: name.as_str(),
+            }),
+        )
+        .await?
+        .map_status(|c| {
+            use StatusCode::*;
+
+            match c {
+                NotFound => Some(Error::ApiError(ApiError::TorrentNotFound)),
+                Conflict => panic!("Name should not be empty. This is a bug."),
+                _ => None,
+            }
+        })
+        .map(|_| ())
     }
 
     pub async fn set_torrent_category(
@@ -774,6 +1018,33 @@ pub enum ApiError {
 
     #[error("Torrent not found")]
     TorrentNotFound,
+
+    #[error("Torrent name is empty")]
+    TorrentNameEmpty,
+
+    #[error("`newUrl` is not a valid URL")]
+    InvalidTrackerUrl,
+
+    #[error("`newUrl` already exists for the torrent or `origUrl` was not found")]
+    UrlAlreadyExistedOrOriginalUrlNotFound,
+
+    #[error("None of the given peers are valid")]
+    InvalidPeers,
+
+    #[error("Torrent queueing is not enabled")]
+    QueueingDisabled,
+
+    #[error("Torrent metadata hasn't downloaded yet or At least one file id was not found")]
+    MetaNotDownloadedOrIdNotFound,
+
+    #[error("Save path is empty")]
+    SavePathEmpty,
+
+    #[error("User does not have write access to directory")]
+    NoWriteAccess,
+
+    #[error("Unable to create save path directory")]
+    UnableToCreateDir,
 }
 
 impl From<http_client::Error> for Error {
