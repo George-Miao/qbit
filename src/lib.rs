@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![warn(clippy::future_not_send)]
 #![cfg_attr(test, feature(lazy_cell))]
+#![cfg_attr(feature = "docs", feature(doc_cfg))]
 
 use std::{
     borrow::Borrow,
@@ -11,6 +12,29 @@ use std::{
     sync::Mutex,
 };
 
+pub use http_client;
+//
+#[cfg_attr(feature = "docs", doc(cfg(feature = "h1_client")))]
+#[cfg_attr(feature = "docs", doc(cfg(feature = "default")))]
+#[cfg(any(feature = "h1_client", feature = "h1_client_rustls"))]
+pub use http_client::h1;
+//
+#[cfg_attr(feature = "docs", doc(cfg(feature = "hyper_client")))]
+#[cfg(feature = "hyper_client")]
+pub use http_client::hyper;
+//
+#[cfg_attr(feature = "docs", doc(cfg(feature = "curl_client")))]
+#[cfg(all(feature = "curl_client", not(target_arch = "wasm32")))]
+pub use http_client::isahc;
+//
+#[cfg_attr(feature = "docs", doc(cfg(feature = "native_client")))]
+#[cfg(any(feature = "curl_client", feature = "wasm_client"))]
+pub use http_client::native;
+//
+#[cfg_attr(feature = "docs", doc(cfg(feature = "wasm_client")))]
+#[cfg(all(feature = "wasm_client", target_arch = "wasm32"))]
+pub use http_client::wasm;
+//
 use http_client::{
     http_types::{headers, Method, StatusCode, Url},
     Body, HttpClient, Request, Response,
@@ -32,6 +56,72 @@ pub struct Qbit<C> {
     endpoint: Url,
     credential: Credential,
     cookie: Mutex<Option<String>>,
+}
+
+#[cfg_attr(feature = "docs", doc(cfg(feature = "h1_client")))]
+#[cfg_attr(feature = "docs", doc(cfg(feature = "default")))]
+#[cfg(feature = "h1_client")]
+impl Qbit<http_client::h1::H1Client> {
+    pub fn new_h1<U>(endpoint: U, credential: Credential) -> Self
+    where
+        U: TryInto<Url>,
+        U::Error: Debug,
+    {
+        Self::new(endpoint, credential, http_client::h1::H1Client::new())
+    }
+}
+
+//
+#[cfg_attr(feature = "docs", doc(cfg(feature = "hyper_client")))]
+#[cfg(feature = "hyper_client")]
+impl Qbit<http_client::hyper::HyperClient> {
+    pub fn new_hyper<U>(endpoint: U, credential: Credential) -> Self
+    where
+        U: TryInto<Url>,
+        U::Error: Debug,
+    {
+        Self::new(endpoint, credential, http_client::hyper::HyperClient::new())
+    }
+}
+//
+#[cfg_attr(feature = "docs", doc(cfg(feature = "curl_client")))]
+#[cfg(all(feature = "curl_client", not(target_arch = "wasm32")))]
+impl Qbit<http_client::isahc::IsahcClient> {
+    pub fn new_isahc<U>(endpoint: U, credential: Credential) -> Self
+    where
+        U: TryInto<Url>,
+        U::Error: Debug,
+    {
+        Self::new(endpoint, credential, http_client::isahc::IsahcClient::new())
+    }
+}
+//
+#[cfg_attr(feature = "docs", doc(cfg(feature = "native_client")))]
+#[cfg(any(feature = "curl_client", feature = "wasm_client"))]
+impl Qbit<http_client::native::NativeClient> {
+    pub fn new_native<U>(endpoint: U, credential: Credential) -> Self
+    where
+        U: TryInto<Url>,
+        U::Error: Debug,
+    {
+        Self::new(
+            endpoint,
+            credential,
+            http_client::native::NativeClient::new(),
+        )
+    }
+}
+//
+#[cfg_attr(feature = "docs", doc(cfg(feature = "wasm_client")))]
+#[cfg(all(feature = "wasm_client", target_arch = "wasm32"))]
+impl Qbit<http_client::wasm::WasmClient> {
+    pub fn new_wasm<U>(endpoint: U, credential: Credential) -> Self
+    where
+        U: TryInto<Url>,
+        U::Error: Debug,
+    {
+        Self::new(endpoint, credential, http_client::wasm::WasmClient::new())
+    }
 }
 
 impl<C: HttpClient> Qbit<C> {

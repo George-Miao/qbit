@@ -1,8 +1,17 @@
 # Qbit-rs
 
-A Rust library for interacting with qBittorrent's Web API. Implemented according to [WebUI API (qBittorrent 4.1)](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)). This crate utilizes [`http_client`](https://crates.io/crates/http_client) to provide a generic HTTP client interface. To use this crate, you need to provide a concrete HTTP client implementation, which can be done by enabling the corresponding feature flags or using the [`http_client`](https://crates.io/crates/http_client) crate directly.
+A Rust library for interacting with qBittorrent's Web API. Implemented according to [WebUI API (qBittorrent 4.1)](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)). This crate utilizes [`http_client`](https://crates.io/crates/http_client) to provide a generic HTTP client interface. To use this crate, you need to provide a concrete HTTP client implementation, which can be done by enabling the corresponding feature flags. By default,  [`http_client::h1::H1Client`](https://docs.rs/http_client/latest/http_client/h1/struct.H1Client.html) is enabled.
 
 ## Usage
+
+Add this to your `Cargo.toml`:
+
+```toml
+[dependencies]
+qbit-rs = "0.1"
+```
+
+And this to your crate:
 
 ```rust
 use qbit_rs::Qbit;
@@ -14,6 +23,8 @@ let torrents = api.get_torrent_list().await?;
 ```
 
 ## API Coverage
+
+Most of the API is covered, except `RSS` and `Search`. PR is welcomed if you need that part of the API. The following is a list of the implementation status:
 
 1. [x] Authentication
    1. [x] [Login](https://docs.rs/qbit-rs/latest/qbit-rs/struct.Qbit.html#method.login)
