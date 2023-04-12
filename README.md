@@ -1,6 +1,8 @@
 # Qbit-rs
 
-A Rust library for interacting with qBittorrent's Web API. Implemented according to [WebUI API (qBittorrent 4.1)](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)). This crate utilizes [`http_client`](https://crates.io/crates/http_client) to provide a generic HTTP client interface. To use this crate, you need to provide a concrete HTTP client implementation, which can be done by enabling the corresponding feature flags. By default,  [`http_client::h1::H1Client`](https://docs.rs/http_client/latest/http_client/h1/struct.H1Client.html) is enabled.
+A Rust library for interacting with qBittorrent's Web API.
+
+Implemented according to [WebUI API (qBittorrent 4.1)](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)). This crate utilizes [`http_client`](https://crates.io/crates/http_client) to provide a generic HTTP client interface. To use this crate, you need to provide a concrete HTTP client implementation, which can be done by enabling the corresponding feature flags. By default,  [`http_client::h1::H1Client`](https://docs.rs/http_client/latest/http_client/h1/struct.H1Client.html) is enabled.
 
 ## Usage
 
@@ -21,6 +23,8 @@ let credential = Credential::new("admin", "adminadmin");
 let api = Qbit::new(url, credential, H1Client::new()); // Or alternatively use `Qbit::new_with_cookie`
 let torrents = api.get_torrent_list().await?;
 ```
+
+For more methods, see [`Qbit`](https://docs.rs/qbit-rs/latest/qbit-rs/struct.Qbit.html).
 
 ## API Coverage
 
