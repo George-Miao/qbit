@@ -10,10 +10,30 @@ use tap::Pipe;
 
 mod_use::mod_use![app, log, sync, torrent, transfer, search];
 
+/// Username and password used to authenticate with qBittorrent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Credential {
-    pub username: String,
-    pub password: String,
+    username: String,
+    password: String,
+}
+
+impl Credential {
+    pub fn new(username: String, password: String) -> Self {
+        Self { username, password }
+    }
+
+    /// Return a dummy credential when you passed in the cookie instead of
+    /// actual credential.
+    pub fn dummy() -> Self {
+        Self {
+            username: "".to_owned(),
+            password: "".to_owned(),
+        }
+    }
+
+    pub fn is_dummy(&self) -> bool {
+        self.username.is_empty() && self.password.is_empty()
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
@@ -90,7 +110,7 @@ impl<T: FromStr, const C: char> FromStr for Sep<T, C> {
     }
 }
 
-/// A wrapper around `str` that ensures that the string is non-empty.
+/// A wrapper around `str` that ensures the string is non-empty.
 pub struct NonEmptyStr<T>(T);
 
 impl<T: AsRef<str>> NonEmptyStr<T> {

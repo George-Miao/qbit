@@ -1,6 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
+use serde_with::skip_serializing_none;
 
 #[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq)]
 pub struct BuildInfo {
@@ -16,7 +17,13 @@ pub struct BuildInfo {
     bitness: i8,
 }
 
+#[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
+#[cfg_attr(
+    feature = "builder",
+    builder(field_defaults(default, setter(strip_option)))
+)]
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, PartialEq)]
+#[skip_serializing_none]
 pub struct Preferences {
     /// Currently selected language (e.g. en_GB for English)
     pub locale: Option<String>,
@@ -203,7 +210,7 @@ pub struct Preferences {
     pub web_ui_username: Option<String>,
     /// For API ≥ v2.3.0: Plaintext WebUI password, not readable, write-only.
     /// For API < v2.3.0: MD5 hash of WebUI password, hash is generated from the
-    /// following Option<String>: `username:Web UI
+    /// following string: `username:Web UI
     /// Access:plain_text_web_ui_password`
     pub web_ui_password: Option<String>,
     /// True if WebUI CSRF protection is enabled

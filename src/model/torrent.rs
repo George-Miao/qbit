@@ -325,6 +325,7 @@ pub enum PieceState {
     Downloaded    = 2,
 }
 
+/// `|` separeated list of hash values or `all`
 #[derive(Debug, Clone, PartialEq, Eq, SerializeDisplay)]
 pub enum Hashes {
     /// A list of torrent hashes separated by `|`
@@ -349,6 +350,10 @@ impl Display for Hashes {
 }
 
 #[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
+#[cfg_attr(
+    feature = "builder",
+    builder(field_defaults(default, setter(strip_option)))
+)]
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize)]
 #[skip_serializing_none]
 pub struct GetTorrentListArg {
@@ -376,18 +381,25 @@ pub struct GetTorrentListArg {
     pub hashes: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum TorrentSource {
     /// URLs
-    Urls(Vec<Url>),
+    Urls { urls: Sep<Url, '\n'> },
     /// Raw data of torrent file.
-    TorrentFiles(Vec<Vec<u8>>),
+    TorrentFiles { torrents: Vec<u8> },
 }
 
 #[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
-#[derive(Debug, Clone, PartialEq, Default, serde::Serialize)]
+#[cfg_attr(
+    feature = "builder",
+    builder(field_defaults(default, setter(strip_option)))
+)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 #[skip_serializing_none]
 pub struct AddTorrentArg {
+    #[serde(flatten)]
+    #[cfg_attr(feature = "builder", builder(!default, setter(!strip_option)))]
+    pub source: TorrentSource,
     /// Download folder
     pub savepath: Option<String>,
     /// Cookie sent to download the .torrent file
@@ -437,7 +449,9 @@ pub struct AddTorrentArg {
 pub struct SetTorrentSharedLimitArg {
     #[cfg_attr(feature = "builder", builder(setter(into)))]
     pub hashes: Hashes,
+    #[cfg_attr(feature = "builder", builder(default, setter(strip_option)))]
     pub ratio_limit: Option<RatioLimit>,
+    #[cfg_attr(feature = "builder", builder(default, setter(strip_option)))]
     pub seeding_time_limit: Option<SeedingTimeLimit>,
 }
 

@@ -51,6 +51,10 @@ pub enum LogLevel {
 }
 
 #[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
+#[cfg_attr(
+    feature = "builder",
+    builder(field_defaults(default, setter(strip_option)))
+)]
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 #[skip_serializing_none]
 pub struct GetLogsArg {
