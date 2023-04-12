@@ -1,9 +1,11 @@
+#![doc = include_str!("../README.md")]
 #![warn(clippy::future_not_send)]
 #![cfg_attr(test, feature(lazy_cell))]
 
 use std::{
     borrow::Borrow,
     collections::HashMap,
+    fmt::Debug,
     ops::Deref,
     path::{Path, PathBuf},
     sync::Mutex,
@@ -23,27 +25,37 @@ use crate::{ext::*, model::*};
 
 mod ext;
 
-pub struct Api<C> {
+/// Main entry point of the library. It provides a high-level API to interact
+/// with qBittorrent WebUI API.
+pub struct Qbit<C> {
     client: C,
     endpoint: Url,
     credential: Credential,
     cookie: Mutex<Option<String>>,
 }
 
-impl<C: HttpClient> Api<C> {
-    pub fn new(endpoint: Url, credential: Credential, client: C) -> Self {
+impl<C: HttpClient> Qbit<C> {
+    pub fn new<U>(endpoint: U, credential: Credential, client: C) -> Self
+    where
+        U: TryInto<Url>,
+        U::Error: Debug,
+    {
         Self {
             client,
-            endpoint,
+            endpoint: endpoint.try_into().expect("Invalid endpoint URL"),
             credential,
             cookie: Mutex::new(None),
         }
     }
 
-    pub fn new_with_cookie(endpoint: Url, cookie: String, client: C) -> Self {
+    pub fn new_with_cookie<U>(endpoint: U, cookie: String, client: C) -> Self
+    where
+        U: TryInto<Url>,
+        U::Error: Debug,
+    {
         Self {
             client,
-            endpoint,
+            endpoint: endpoint.try_into().expect("Invalid endpoint URL"),
             credential: Credential::dummy(),
             cookie: Mutex::from(Some(cookie)),
         }
@@ -79,6 +91,10 @@ impl<C: HttpClient> Api<C> {
             .body_json()
             .await
             .map_err(Into::into)
+    }
+
+    pub async fn shutdown(&self) -> Result<()> {
+        self.get("app/shutdown", NONE).await?.end()
     }
 
     pub async fn get_preferences(&self) -> Result<Preferences> {
@@ -1136,7 +1152,7 @@ impl<C: HttpClient> Api<C> {
 
     /// Log in to qBittorrent. Set force to `true` to forcefully re-login
     /// regardless if cookie is already set.
-    async fn login(&self, force: bool) -> Result<()> {
+    pub async fn login(&self, force: bool) -> Result<()> {
         let re_login = force || { self.cookie.lock().unwrap().is_none() };
         if re_login {
             debug!("Cookie not found, logging in");
@@ -1251,7 +1267,7 @@ pub enum Error {
     ApiError(#[from] ApiError),
 }
 
-/// Errors defined and returned by the API with status code
+/// Errors defined and returned by the API
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
     #[error("User's IP is banned for too many failed login attempts")]
@@ -1320,7 +1336,7 @@ mod test {
 
     use super::*;
 
-    async fn prepare<'a>() -> Result<&'a Api<H1Client>> {
+    async fn prepare<'a>() -> Result<&'a Qbit<H1Client>> {
         static PREPARE: LazyLock<(Credential, Url)> = LazyLock::new(|| {
             dotenv::dotenv().expect("Failed to load .env file");
             tracing_subscriber::fmt::init();
@@ -1336,13 +1352,13 @@ mod test {
                     .expect("QBIT_BASEURL is not a valid url"),
             )
         });
-        static API: OnceLock<Api<H1Client>> = OnceLock::new();
+        static API: OnceLock<Qbit<H1Client>> = OnceLock::new();
 
         if let Some(api) = API.get() {
             Ok(api)
         } else {
-            let (credential, url) = &*PREPARE;
-            let api = Api::new(url.to_owned(), credential.clone(), H1Client::new());
+            let (credential, url) = PREPARE.deref().clone();
+            let api = Qbit::new(url, credential, H1Client::new());
             api.login(false).await?;
             drop(API.set(api));
             Ok(API.get().unwrap())

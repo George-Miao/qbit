@@ -1,3 +1,5 @@
+//! Model types used in the API.
+
 use std::{
     fmt::{Display, Write},
     path::PathBuf,
