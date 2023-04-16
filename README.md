@@ -2,7 +2,7 @@
 
 A Rust library for interacting with qBittorrent's Web API.
 
-Implemented according to [WebUI API (qBittorrent 4.1)](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)). This crate utilizes [`http_client`](https://crates.io/crates/http_client) to provide a generic HTTP client interface. To use this crate, you need to provide a concrete HTTP client implementation, which can be done by enabling the corresponding feature flags. By default,  [`http_client::h1::H1Client`](https://docs.rs/http_client/latest/http_client/h1/struct.H1Client.html) is enabled.
+Implemented according to [WebUI API (qBittorrent 4.1)](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)).
 
 ## Usage
 
