@@ -10,7 +10,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-qbit-rs = "0.2"
+qbit-rs = "0.3"
 ```
 
 And this to your crate:
