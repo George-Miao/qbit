@@ -12,38 +12,16 @@ use std::{
     sync::Mutex,
 };
 
-pub use http_client;
-//
-#[cfg_attr(feature = "docs", doc(cfg(feature = "h1_client")))]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "default")))]
-#[cfg(any(feature = "h1_client", feature = "h1_client_rustls"))]
-pub use http_client::h1;
-//
-#[cfg_attr(feature = "docs", doc(cfg(feature = "hyper_client")))]
-#[cfg(feature = "hyper_client")]
-pub use http_client::hyper;
-//
-#[cfg_attr(feature = "docs", doc(cfg(feature = "curl_client")))]
-#[cfg(all(feature = "curl_client", not(target_arch = "wasm32")))]
-pub use http_client::isahc;
-//
-#[cfg_attr(feature = "docs", doc(cfg(feature = "native_client")))]
-#[cfg(any(feature = "curl_client", feature = "wasm_client"))]
-pub use http_client::native;
-//
-#[cfg_attr(feature = "docs", doc(cfg(feature = "wasm_client")))]
-#[cfg(all(feature = "wasm_client", target_arch = "wasm32"))]
-pub use http_client::wasm;
-//
-use http_client::{
-    http_types::{headers, Method, StatusCode, Url},
-    Body, HttpClient, Request, Response,
-};
 pub mod model;
+use reqwest::{
+    header::{self, ToStrError},
+    Client, Method, Response, StatusCode,
+};
 use serde::Serialize;
 use serde_with::skip_serializing_none;
 use tap::{Pipe, TapFallible};
 use tracing::{debug, trace, warn};
+use url::Url;
 
 use crate::{ext::*, model::*};
 
@@ -51,81 +29,15 @@ mod ext;
 
 /// Main entry point of the library. It provides a high-level API to interact
 /// with qBittorrent WebUI API.
-pub struct Qbit<C> {
-    client: C,
+pub struct Qbit {
+    client: Client,
     endpoint: Url,
     credential: Credential,
     cookie: Mutex<Option<String>>,
 }
 
-#[cfg_attr(feature = "docs", doc(cfg(feature = "h1_client")))]
-#[cfg_attr(feature = "docs", doc(cfg(feature = "default")))]
-#[cfg(feature = "h1_client")]
-impl Qbit<http_client::h1::H1Client> {
-    pub fn new_h1<U>(endpoint: U, credential: Credential) -> Self
-    where
-        U: TryInto<Url>,
-        U::Error: Debug,
-    {
-        Self::new(endpoint, credential, http_client::h1::H1Client::new())
-    }
-}
-
-//
-#[cfg_attr(feature = "docs", doc(cfg(feature = "hyper_client")))]
-#[cfg(feature = "hyper_client")]
-impl Qbit<http_client::hyper::HyperClient> {
-    pub fn new_hyper<U>(endpoint: U, credential: Credential) -> Self
-    where
-        U: TryInto<Url>,
-        U::Error: Debug,
-    {
-        Self::new(endpoint, credential, http_client::hyper::HyperClient::new())
-    }
-}
-//
-#[cfg_attr(feature = "docs", doc(cfg(feature = "curl_client")))]
-#[cfg(all(feature = "curl_client", not(target_arch = "wasm32")))]
-impl Qbit<http_client::isahc::IsahcClient> {
-    pub fn new_isahc<U>(endpoint: U, credential: Credential) -> Self
-    where
-        U: TryInto<Url>,
-        U::Error: Debug,
-    {
-        Self::new(endpoint, credential, http_client::isahc::IsahcClient::new())
-    }
-}
-//
-#[cfg_attr(feature = "docs", doc(cfg(feature = "native_client")))]
-#[cfg(any(feature = "curl_client", feature = "wasm_client"))]
-impl Qbit<http_client::native::NativeClient> {
-    pub fn new_native<U>(endpoint: U, credential: Credential) -> Self
-    where
-        U: TryInto<Url>,
-        U::Error: Debug,
-    {
-        Self::new(
-            endpoint,
-            credential,
-            http_client::native::NativeClient::new(),
-        )
-    }
-}
-//
-#[cfg_attr(feature = "docs", doc(cfg(feature = "wasm_client")))]
-#[cfg(all(feature = "wasm_client", target_arch = "wasm32"))]
-impl Qbit<http_client::wasm::WasmClient> {
-    pub fn new_wasm<U>(endpoint: U, credential: Credential) -> Self
-    where
-        U: TryInto<Url>,
-        U::Error: Debug,
-    {
-        Self::new(endpoint, credential, http_client::wasm::WasmClient::new())
-    }
-}
-
-impl<C: HttpClient> Qbit<C> {
-    pub fn new<U>(endpoint: U, credential: Credential, client: C) -> Self
+impl Qbit {
+    pub fn new_with_client<U>(endpoint: U, credential: Credential, client: Client) -> Self
     where
         U: TryInto<Url>,
         U::Error: Debug,
@@ -138,16 +50,23 @@ impl<C: HttpClient> Qbit<C> {
         }
     }
 
-    pub fn new_with_cookie<U>(endpoint: U, cookie: String, client: C) -> Self
+    pub fn new<U>(endpoint: U, credential: Credential) -> Self
     where
         U: TryInto<Url>,
         U::Error: Debug,
     {
         Self {
-            client,
+            client: Client::new(),
             endpoint: endpoint.try_into().expect("Invalid endpoint URL"),
-            credential: Credential::dummy(),
+            credential,
+            cookie: Mutex::from(None),
+        }
+    }
+
+    pub fn with_cookie(self, cookie: String) -> Self {
+        Self {
             cookie: Mutex::from(Some(cookie)),
+            ..self
         }
     }
 
@@ -162,7 +81,7 @@ impl<C: HttpClient> Qbit<C> {
     pub async fn get_version(&self) -> Result<String> {
         self.get("app/version", NONE)
             .await?
-            .body_string()
+            .text()
             .await
             .map_err(Into::into)
     }
@@ -170,7 +89,7 @@ impl<C: HttpClient> Qbit<C> {
     pub async fn get_webapi_version(&self) -> Result<String> {
         self.get("app/webapiVersion", NONE)
             .await?
-            .body_string()
+            .text()
             .await
             .map_err(Into::into)
     }
@@ -178,7 +97,7 @@ impl<C: HttpClient> Qbit<C> {
     pub async fn get_build_info(&self) -> Result<BuildInfo> {
         self.get("app/buildInfo", NONE)
             .await?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -190,7 +109,7 @@ impl<C: HttpClient> Qbit<C> {
     pub async fn get_preferences(&self) -> Result<Preferences> {
         self.get("app/preferences", NONE)
             .await?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -218,7 +137,7 @@ impl<C: HttpClient> Qbit<C> {
     pub async fn get_default_save_path(&self) -> Result<PathBuf> {
         self.get("app/defaultSavePath", NONE)
             .await?
-            .body_string()
+            .text()
             .await
             .map_err(Into::into)
             .map(PathBuf::from)
@@ -227,7 +146,7 @@ impl<C: HttpClient> Qbit<C> {
     pub async fn get_logs(&self, arg: impl Borrow<GetLogsArg> + Send + Sync) -> Result<Vec<Log>> {
         self.get("log/main", Some(arg.borrow()))
             .await?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -249,7 +168,7 @@ impl<C: HttpClient> Qbit<C> {
             }),
         )
         .await?
-        .body_json()
+        .json()
         .await
         .map_err(Into::into)
     }
@@ -263,7 +182,7 @@ impl<C: HttpClient> Qbit<C> {
 
         self.get("sync/maindata", Some(&Arg { rid: rid.into() }))
             .await?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -288,7 +207,7 @@ impl<C: HttpClient> Qbit<C> {
         )
         .await
         .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
-        .body_json()
+        .json()
         .await
         .map_err(Into::into)
     }
@@ -296,7 +215,7 @@ impl<C: HttpClient> Qbit<C> {
     pub async fn get_transfer_info(&self) -> Result<TransferInfo> {
         self.get("transfer/info", NONE)
             .await?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -304,7 +223,7 @@ impl<C: HttpClient> Qbit<C> {
     pub async fn get_speed_limits_mode(&self) -> Result<bool> {
         self.get("transfer/speedLimitsMode", NONE)
             .await?
-            .body_string()
+            .text()
             .await
             .map_err(Into::into)
             .and_then(|s| match s.as_str() {
@@ -325,7 +244,7 @@ impl<C: HttpClient> Qbit<C> {
     pub async fn get_download_limit(&self) -> Result<u64> {
         self.get("transfer/downloadLimit", NONE)
             .await?
-            .body_string()
+            .text()
             .await
             .map_err(Into::into)
             .and_then(|s| {
@@ -349,7 +268,7 @@ impl<C: HttpClient> Qbit<C> {
     pub async fn get_upload_limit(&self) -> Result<u64> {
         self.get("transfer/uploadLimit", NONE)
             .await?
-            .body_string()
+            .text()
             .await
             .map_err(Into::into)
             .and_then(|s| {
@@ -389,7 +308,7 @@ impl<C: HttpClient> Qbit<C> {
     pub async fn get_torrent_list(&self, arg: GetTorrentListArg) -> Result<Vec<Torrent>> {
         self.get("torrents/info", Some(&arg))
             .await?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -401,7 +320,7 @@ impl<C: HttpClient> Qbit<C> {
         self.get("torrents/properties", Some(&HashArg::new(hash.as_ref())))
             .await
             .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -413,7 +332,7 @@ impl<C: HttpClient> Qbit<C> {
         self.get("torrents/trackers", Some(&HashArg::new(hash.as_ref())))
             .await
             .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -425,7 +344,7 @@ impl<C: HttpClient> Qbit<C> {
         self.get("torrents/webseeds", Some(&HashArg::new(hash.as_ref())))
             .await
             .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -451,7 +370,7 @@ impl<C: HttpClient> Qbit<C> {
         )
         .await
         .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
-        .body_json()
+        .json()
         .await
         .map_err(Into::into)
     }
@@ -463,7 +382,7 @@ impl<C: HttpClient> Qbit<C> {
         self.get("torrents/pieceStates", Some(&HashArg::new(hash.as_ref())))
             .await
             .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -475,7 +394,7 @@ impl<C: HttpClient> Qbit<C> {
         self.get("torrents/pieceHashes", Some(&HashArg::new(hash.as_ref())))
             .await
             .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -483,7 +402,7 @@ impl<C: HttpClient> Qbit<C> {
     pub async fn pause_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
         self.get("torrents/pause", Some(&HashesArg::new(hashes)))
             .await?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -491,7 +410,7 @@ impl<C: HttpClient> Qbit<C> {
     pub async fn resume_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
         self.get("torrents/resume", Some(&HashesArg::new(hashes)))
             .await?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -515,7 +434,7 @@ impl<C: HttpClient> Qbit<C> {
             }),
         )
         .await?
-        .body_json()
+        .json()
         .await
         .map_err(Into::into)
     }
@@ -523,7 +442,7 @@ impl<C: HttpClient> Qbit<C> {
     pub async fn recheck_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
         self.get("torrents/recheck", Some(&HashesArg::new(hashes)))
             .await?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -531,7 +450,7 @@ impl<C: HttpClient> Qbit<C> {
     pub async fn reannounce_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
         self.get("torrents/reannounce", Some(&HashesArg::new(hashes)))
             .await?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -542,7 +461,7 @@ impl<C: HttpClient> Qbit<C> {
     ) -> Result<Vec<Torrent>> {
         self.post("torrents/add", NONE, Some(arg.borrow()))
             .await?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -567,7 +486,7 @@ impl<C: HttpClient> Qbit<C> {
         )
         .await
         .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
-        .body_json()
+        .json()
         .await
         .map_err(Into::into)
     }
@@ -593,16 +512,13 @@ impl<C: HttpClient> Qbit<C> {
             }),
         )
         .await?
-        .map_status(|c| {
-            use StatusCode::*;
-            match c {
-                BadRequest => Some(Error::ApiError(ApiError::InvalidTrackerUrl)),
-                NotFound => Some(Error::ApiError(ApiError::TorrentNotFound)),
-                Conflict => Some(Error::ApiError(ApiError::ConflictTrackerUrl)),
-                _ => None,
-            }
+        .map_status(|c| match c {
+            StatusCode::BAD_REQUEST => Some(Error::ApiError(ApiError::InvalidTrackerUrl)),
+            StatusCode::NOT_FOUND => Some(Error::ApiError(ApiError::TorrentNotFound)),
+            StatusCode::CONFLICT => Some(Error::ApiError(ApiError::ConflictTrackerUrl)),
+            _ => None,
         })?
-        .body_json()
+        .json()
         .await
         .map_err(Into::into)
     }
@@ -651,7 +567,7 @@ impl<C: HttpClient> Qbit<C> {
         .await
         .and_then(|r| {
             r.map_status(|c| {
-                if c == StatusCode::BadRequest {
+                if c == StatusCode::BAD_REQUEST {
                     Some(Error::ApiError(ApiError::InvalidPeers))
                 } else {
                     None
@@ -665,7 +581,7 @@ impl<C: HttpClient> Qbit<C> {
         self.get("torrents/increasePrio", Some(&HashesArg::new(hashes)))
             .await?
             .map_status(|c| {
-                if c == StatusCode::Conflict {
+                if c == StatusCode::CONFLICT {
                     Some(Error::ApiError(ApiError::QueueingDisabled))
                 } else {
                     None
@@ -678,7 +594,7 @@ impl<C: HttpClient> Qbit<C> {
         self.get("torrents/decreasePrio", Some(&HashesArg::new(hashes)))
             .await?
             .map_status(|c| {
-                if c == StatusCode::Conflict {
+                if c == StatusCode::CONFLICT {
                     Some(Error::ApiError(ApiError::QueueingDisabled))
                 } else {
                     None
@@ -691,7 +607,7 @@ impl<C: HttpClient> Qbit<C> {
         self.get("torrents/topPrio", Some(&HashesArg::new(hashes)))
             .await?
             .map_status(|c| {
-                if c == StatusCode::Conflict {
+                if c == StatusCode::CONFLICT {
                     Some(Error::ApiError(ApiError::QueueingDisabled))
                 } else {
                     None
@@ -704,7 +620,7 @@ impl<C: HttpClient> Qbit<C> {
         self.get("torrents/bottomPrio", Some(&HashesArg::new(hashes)))
             .await?
             .map_status(|c| {
-                if c == StatusCode::Conflict {
+                if c == StatusCode::CONFLICT {
                     Some(Error::ApiError(ApiError::QueueingDisabled))
                 } else {
                     None
@@ -735,15 +651,11 @@ impl<C: HttpClient> Qbit<C> {
             }),
         )
         .await?
-        .map_status(|c| {
-            use StatusCode::*;
-
-            match c {
-                BadRequest => panic!("Invalid priority or id. This is a bug."),
-                NotFound => Some(Error::ApiError(ApiError::TorrentNotFound)),
-                Conflict => Some(Error::ApiError(ApiError::MetaNotDownloadedOrIdNotFound)),
-                _ => None,
-            }
+        .map_status(|c| match c {
+            StatusCode::BAD_REQUEST => panic!("Invalid priority or id. This is a bug."),
+            StatusCode::NOT_FOUND => Some(Error::ApiError(ApiError::TorrentNotFound)),
+            StatusCode::CONFLICT => Some(Error::ApiError(ApiError::MetaNotDownloadedOrIdNotFound)),
+            _ => None,
         })?;
         Ok(())
     }
@@ -754,7 +666,7 @@ impl<C: HttpClient> Qbit<C> {
     ) -> Result<HashMap<String, u64>> {
         self.get("torrents/downloadLimit", Some(&HashesArg::new(hashes)))
             .await?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -796,7 +708,7 @@ impl<C: HttpClient> Qbit<C> {
     ) -> Result<HashMap<String, u64>> {
         self.get("torrents/uploadLimit", Some(&HashesArg::new(hashes)))
             .await?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -842,15 +754,11 @@ impl<C: HttpClient> Qbit<C> {
             }),
         )
         .await?
-        .map_status(|c| {
-            use StatusCode::*;
-
-            match c {
-                BadRequest => Some(Error::ApiError(ApiError::SavePathEmpty)),
-                Forbidden => Some(Error::ApiError(ApiError::NoWriteAccess)),
-                Conflict => Some(Error::ApiError(ApiError::UnableToCreateDir)),
-                _ => None,
-            }
+        .map_status(|c| match c {
+            StatusCode::BAD_REQUEST => Some(Error::ApiError(ApiError::SavePathEmpty)),
+            StatusCode::FORBIDDEN => Some(Error::ApiError(ApiError::NoWriteAccess)),
+            StatusCode::CONFLICT => Some(Error::ApiError(ApiError::UnableToCreateDir)),
+            _ => None,
         })?
         .end()
     }
@@ -874,14 +782,10 @@ impl<C: HttpClient> Qbit<C> {
             }),
         )
         .await?
-        .map_status(|c| {
-            use StatusCode::*;
-
-            match c {
-                NotFound => Some(Error::ApiError(ApiError::TorrentNotFound)),
-                Conflict => panic!("Name should not be empty. This is a bug."),
-                _ => None,
-            }
+        .map_status(|c| match c {
+            StatusCode::NOT_FOUND => Some(Error::ApiError(ApiError::TorrentNotFound)),
+            StatusCode::CONFLICT => panic!("Name should not be empty. This is a bug."),
+            _ => None,
         })?
         .end()
     }
@@ -906,7 +810,7 @@ impl<C: HttpClient> Qbit<C> {
         )
         .await?
         .map_status(|c| {
-            if c == StatusCode::Conflict {
+            if c == StatusCode::CONFLICT {
                 Some(Error::ApiError(ApiError::CategoryNotFound))
             } else {
                 None
@@ -918,7 +822,7 @@ impl<C: HttpClient> Qbit<C> {
     pub async fn get_categories(&self) -> Result<HashMap<String, Category>> {
         self.get("torrents/categories", NONE)
             .await?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -965,7 +869,7 @@ impl<C: HttpClient> Qbit<C> {
         )
         .await?
         .map_status(|c| {
-            if c == StatusCode::Conflict {
+            if c == StatusCode::CONFLICT {
                 Some(Error::ApiError(ApiError::CategoryEditingFailed))
             } else {
                 None
@@ -1041,7 +945,7 @@ impl<C: HttpClient> Qbit<C> {
     pub async fn get_all_tags(&self) -> Result<Vec<String>> {
         self.get("torrents/tags", NONE)
             .await?
-            .body_json()
+            .json()
             .await
             .map_err(Into::into)
     }
@@ -1191,7 +1095,7 @@ impl<C: HttpClient> Qbit<C> {
         )
         .await?
         .map_status(|c| {
-            if c == StatusCode::Conflict {
+            if c == StatusCode::CONFLICT {
                 Error::ApiError(ApiError::InvalidPath).pipe(Some)
             } else {
                 None
@@ -1223,7 +1127,7 @@ impl<C: HttpClient> Qbit<C> {
         )
         .await?
         .map_status(|c| {
-            if c == StatusCode::Conflict {
+            if c == StatusCode::CONFLICT {
                 Error::ApiError(ApiError::InvalidPath).pipe(Some)
             } else {
                 None
@@ -1246,20 +1150,23 @@ impl<C: HttpClient> Qbit<C> {
         let re_login = force || { self.cookie.lock().unwrap().is_none() };
         if re_login {
             debug!("Cookie not found, logging in");
-            let mut req = Request::get(self.url("auth/login"));
-            req.set_query(&self.credential)?;
-            let Cookie(cookie) = self
-                .client
-                .send(req)
+            self.client
+                .request(Method::GET, self.url("auth/login"))
+                .query(&self.credential)
+                .send()
                 .await?
                 .map_status(|code| match code as _ {
-                    StatusCode::Forbidden => Some(Error::ApiError(ApiError::IpBanned)),
+                    StatusCode::FORBIDDEN => Some(Error::ApiError(ApiError::IpBanned)),
                     _ => None,
                 })?
-                .extract::<Cookie>()?;
-
-            // Ignore result
-            drop(self.cookie.lock().unwrap().replace(cookie));
+                .extract::<Cookie>()?
+                .pipe(|Cookie(cookie)| {
+                    self.cookie
+                        .lock()
+                        .unwrap()
+                        .replace(cookie)
+                        .expect("Cookie should not be set yet")
+                });
 
             debug!("Log in success");
         } else {
@@ -1280,31 +1187,31 @@ impl<C: HttpClient> Qbit<C> {
             // If it's not the first attempt, we need to re-login
             self.login(i != 0).await?;
 
-            let mut req = Request::new(method, self.url(path));
-
-            req.append_header(headers::COOKIE, {
-                self.cookie
-                    .lock()
-                    .unwrap()
-                    .as_deref()
-                    .expect("Cookie should be set after login")
-            });
+            let mut req =
+                self.client
+                    .request(method.clone(), self.url(path))
+                    .header(header::COOKIE, {
+                        self.cookie
+                            .lock()
+                            .unwrap()
+                            .as_deref()
+                            .expect("Cookie should be set after login")
+                    });
 
             if let Some(qs) = qs {
-                req.set_query(qs)?;
+                req = req.query(qs);
             }
 
             if let Some(ref body) = body {
-                req.set_body(Body::from_form(body)?);
+                req = req.json(body)
             }
 
             trace!(request = ?req, "Sending request");
-            let res = self
-                .client
-                .send(req)
+            let res = req
+                .send()
                 .await?
                 .map_status(|code| match code as _ {
-                    StatusCode::Forbidden => Some(Error::ApiError(ApiError::NotLoggedIn)),
+                    StatusCode::FORBIDDEN => Some(Error::ApiError(ApiError::NotLoggedIn)),
                     _ => None,
                 })
                 .tap_ok(|res| trace!(?res));
@@ -1327,7 +1234,7 @@ impl<C: HttpClient> Qbit<C> {
         path: &'static str,
         qs: Option<&(impl Serialize + Sync)>,
     ) -> Result<Response> {
-        self.request(Method::Get, path, qs, NONE).await
+        self.request(Method::GET, path, qs, NONE).await
     }
 
     async fn post(
@@ -1336,7 +1243,7 @@ impl<C: HttpClient> Qbit<C> {
         qs: Option<&(impl Serialize + Sync)>,
         body: Option<&(impl Serialize + Sync)>,
     ) -> Result<Response> {
-        self.request(Method::Post, path, qs, body).await
+        self.request(Method::POST, path, qs, body).await
     }
 }
 
@@ -1345,13 +1252,16 @@ const NONE: Option<&'static ()> = Option::None;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Http error: {0}")]
-    HttpError(http_client::Error),
+    HttpError(#[from] reqwest::Error),
 
     #[error("API Returned bad response: {explain}")]
     BadResponse { explain: &'static str },
 
     #[error("API returned unknown status code: {0}")]
     UnknownHttpCode(StatusCode),
+
+    #[error("Non utf-8 header")]
+    ToStrError(#[from] ToStrError),
 
     #[error(transparent)]
     ApiError(#[from] ApiError),
@@ -1406,12 +1316,6 @@ pub enum ApiError {
     InvalidPath,
 }
 
-impl From<http_client::Error> for Error {
-    fn from(err: http_client::Error) -> Self {
-        Self::HttpError(err)
-    }
-}
-
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[cfg(test)]
@@ -1421,12 +1325,11 @@ mod test {
         sync::{LazyLock, OnceLock},
     };
 
-    use http_client::h1::H1Client;
     use tracing::info;
 
     use super::*;
 
-    async fn prepare<'a>() -> Result<&'a Qbit<H1Client>> {
+    async fn prepare<'a>() -> Result<&'a Qbit> {
         static PREPARE: LazyLock<(Credential, Url)> = LazyLock::new(|| {
             dotenv::dotenv().expect("Failed to load .env file");
             tracing_subscriber::fmt::init();
@@ -1442,13 +1345,13 @@ mod test {
                     .expect("QBIT_BASEURL is not a valid url"),
             )
         });
-        static API: OnceLock<Qbit<H1Client>> = OnceLock::new();
+        static API: OnceLock<Qbit> = OnceLock::new();
 
         if let Some(api) = API.get() {
             Ok(api)
         } else {
             let (credential, url) = PREPARE.deref().clone();
-            let api = Qbit::new(url, credential, H1Client::new());
+            let api = Qbit::new(url, credential);
             api.login(false).await?;
             drop(API.set(api));
             Ok(API.get().unwrap())

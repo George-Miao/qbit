@@ -1,7 +1,4 @@
-use http_client::{
-    http_types::{headers::SET_COOKIE, StatusCode},
-    Response,
-};
+use reqwest::{header::SET_COOKIE, Response, StatusCode};
 use tap::Pipe;
 
 use crate::{ApiError, Error, Result};
@@ -17,11 +14,12 @@ pub struct Cookie(pub String);
 impl FromResponse for Cookie {
     fn from_response(response: &Response) -> Result<Self> {
         let cookie = response
-            .header(SET_COOKIE)
+            .headers()
+            .get(SET_COOKIE)
             .ok_or(Error::BadResponse {
                 explain: "Failed to extract cookie from response",
             })?
-            .as_str()
+            .to_str()?
             .to_owned();
         Ok(Self(cookie))
     }
@@ -55,7 +53,7 @@ impl ResponseExt for Response {
             match f(status) {
                 Some(err) => Err(err),
                 None => match status {
-                    StatusCode::Forbidden => Err(Error::ApiError(ApiError::NotLoggedIn)),
+                    StatusCode::FORBIDDEN => Err(Error::ApiError(ApiError::NotLoggedIn)),
                     _ => Ok(self),
                 },
             }
@@ -70,7 +68,7 @@ impl ResponseExt for Response {
 
 /// Handle 404 returned by APIs with torrent hash as a parameter
 pub const TORRENT_NOT_FOUND: fn(StatusCode) -> Option<Error> = |s| {
-    if s == StatusCode::NotFound {
+    if s == StatusCode::NOT_FOUND {
         Some(Error::ApiError(ApiError::TorrentNotFound))
     } else {
         None

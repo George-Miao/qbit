@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display};
 
-use http_client::http_types::Url;
+use reqwest::Url;
 use serde::Serialize;
 use serde_with::{skip_serializing_none, SerializeDisplay};
 

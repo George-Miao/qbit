@@ -17,29 +17,18 @@ features     = ["docs"]
 rustdoc-args = ["--cfg", "feature=\"docs\""]
 
 [features]
-default = ["h1_client", "native_tls", "builder"]
+default = ["builder"]
+docs    = []
 
 # enables typed-builder on args types
 builder = ["dep:typed-builder"]
 
-# curl_client feature of http-client
-curl_client = ["http-client/curl_client"]
-# h1_client feature of http-client
-h1_client = ["http-client/h1_client"]
-# hyper_client feature of http-client
-hyper_client = ["http-client/hyper_client"]
-# native_client feature of http-client
-native_client = ["http-client/native_client"]
-# wasm_client feature of http-client
-wasm_client = ["http-client/wasm_client"]
-
-rustls     = ["http-client/rustls"]
-native_tls = ["http-client/native-tls"]
-
-docs = ["http-client/docs"]
-
 
 [dependencies]
+typed-builder = { version = "0.14.0", optional = true }
+serde         = { version = "1.0.159", features = ["derive"] }
+
+
 mod_use     = "0.2.1"
 serde-value = "0.7.0"
 serde_repr  = "0.1.12"
@@ -47,15 +36,11 @@ serde_with  = "2.3.2"
 tap         = "1.0.1"
 thiserror   = "1.0.40"
 tracing     = "0.1.37"
-
-typed-builder = { version = "0.14.0", optional = true }
-http-client   = { version = "6.5.3", default-features = false }
-serde         = { version = "1.0.159", features = ["derive"] }
+reqwest     = { version = "0.11.16", features = ["json"] }
+url = { version = "2.3.1", features = ["serde"] }
 
 [dev-dependencies]
+tokio = { version = "1.27.0", features = ["full"] }
+
 dotenv             = "0.15.0"
 tracing-subscriber = "0.3.16"
-
-
-tokio       = { version = "1.27.0", features = ["full"] }
-http-client = { version = "6.5.3", default-features = true }
