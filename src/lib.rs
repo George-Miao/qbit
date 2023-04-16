@@ -75,11 +75,11 @@ impl Qbit {
     }
 
     pub async fn logout(&self) -> Result<()> {
-        self.get("auth/logout", NONE).await?.end()
+        self.get("auth/logout").await?.end()
     }
 
     pub async fn get_version(&self) -> Result<String> {
-        self.get("app/version", NONE)
+        self.get("app/version")
             .await?
             .text()
             .await
@@ -87,7 +87,7 @@ impl Qbit {
     }
 
     pub async fn get_webapi_version(&self) -> Result<String> {
-        self.get("app/webapiVersion", NONE)
+        self.get("app/webapiVersion")
             .await?
             .text()
             .await
@@ -95,7 +95,7 @@ impl Qbit {
     }
 
     pub async fn get_build_info(&self) -> Result<BuildInfo> {
-        self.get("app/buildInfo", NONE)
+        self.get("app/buildInfo")
             .await?
             .json()
             .await
@@ -103,11 +103,11 @@ impl Qbit {
     }
 
     pub async fn shutdown(&self) -> Result<()> {
-        self.get("app/shutdown", NONE).await?.end()
+        self.get("app/shutdown").await?.end()
     }
 
     pub async fn get_preferences(&self) -> Result<Preferences> {
-        self.get("app/preferences", NONE)
+        self.get("app/preferences")
             .await?
             .json()
             .await
@@ -119,15 +119,14 @@ impl Qbit {
         preferences: impl Borrow<Preferences> + Send + Sync,
     ) -> Result<()> {
         #[derive(Serialize)]
-        struct Arg<'a> {
-            json: &'a Preferences,
+        struct Arg {
+            json: String,
         }
 
         self.post(
             "app/setPreferences",
-            NONE,
             Some(&Arg {
-                json: preferences.borrow(),
+                json: serde_json::to_string(preferences.borrow())?,
             }),
         )
         .await?
@@ -135,7 +134,7 @@ impl Qbit {
     }
 
     pub async fn get_default_save_path(&self) -> Result<PathBuf> {
-        self.get("app/defaultSavePath", NONE)
+        self.get("app/defaultSavePath")
             .await?
             .text()
             .await
@@ -144,7 +143,7 @@ impl Qbit {
     }
 
     pub async fn get_logs(&self, arg: impl Borrow<GetLogsArg> + Send + Sync) -> Result<Vec<Log>> {
-        self.get("log/main", Some(arg.borrow()))
+        self.post("log/main", Some(arg.borrow()))
             .await?
             .json()
             .await
@@ -161,7 +160,7 @@ impl Qbit {
             last_known_id: Option<i64>,
         }
 
-        self.get(
+        self.post(
             "log/peers",
             Some(&Arg {
                 last_known_id: last_known_id.into(),
@@ -180,7 +179,7 @@ impl Qbit {
             rid: Option<i64>,
         }
 
-        self.get("sync/maindata", Some(&Arg { rid: rid.into() }))
+        self.post("sync/maindata", Some(&Arg { rid: rid.into() }))
             .await?
             .json()
             .await
@@ -198,7 +197,7 @@ impl Qbit {
             rid: Option<i64>,
         }
 
-        self.get(
+        self.post(
             "sync/torrentPeers",
             Some(&Arg {
                 hash: hash.as_ref(),
@@ -213,7 +212,7 @@ impl Qbit {
     }
 
     pub async fn get_transfer_info(&self) -> Result<TransferInfo> {
-        self.get("transfer/info", NONE)
+        self.get("transfer/info")
             .await?
             .json()
             .await
@@ -221,7 +220,7 @@ impl Qbit {
     }
 
     pub async fn get_speed_limits_mode(&self) -> Result<bool> {
-        self.get("transfer/speedLimitsMode", NONE)
+        self.get("transfer/speedLimitsMode")
             .await?
             .text()
             .await
@@ -236,13 +235,11 @@ impl Qbit {
     }
 
     pub async fn toggle_speed_limits_mode(&self) -> Result<()> {
-        self.get("transfer/toggleSpeedLimitsMode", NONE)
-            .await?
-            .end()
+        self.get("transfer/toggleSpeedLimitsMode").await?.end()
     }
 
     pub async fn get_download_limit(&self) -> Result<u64> {
-        self.get("transfer/downloadLimit", NONE)
+        self.get("transfer/downloadLimit")
             .await?
             .text()
             .await
@@ -260,13 +257,13 @@ impl Qbit {
             limit: u64,
         }
 
-        self.get("transfer/setDownloadLimit", Some(&Arg { limit }))
+        self.post("transfer/setDownloadLimit", Some(&Arg { limit }))
             .await?
             .end()
     }
 
     pub async fn get_upload_limit(&self) -> Result<u64> {
-        self.get("transfer/uploadLimit", NONE)
+        self.get("transfer/uploadLimit")
             .await?
             .text()
             .await
@@ -284,7 +281,7 @@ impl Qbit {
             limit: u64,
         }
 
-        self.get("transfer/setUploadLimit", Some(&Arg { limit }))
+        self.post("transfer/setUploadLimit", Some(&Arg { limit }))
             .await?
             .end()
     }
@@ -295,7 +292,7 @@ impl Qbit {
             peers: String,
         }
 
-        self.get(
+        self.post(
             "transfer/banPeers",
             Some(&Arg {
                 peers: peers.into().to_string(),
@@ -306,7 +303,7 @@ impl Qbit {
     }
 
     pub async fn get_torrent_list(&self, arg: GetTorrentListArg) -> Result<Vec<Torrent>> {
-        self.get("torrents/info", Some(&arg))
+        self.post("torrents/info", Some(&arg))
             .await?
             .json()
             .await
@@ -317,7 +314,7 @@ impl Qbit {
         &self,
         hash: impl AsRef<str> + Sync + Send + Sync,
     ) -> Result<TorrentProperty> {
-        self.get("torrents/properties", Some(&HashArg::new(hash.as_ref())))
+        self.post("torrents/properties", Some(&HashArg::new(hash.as_ref())))
             .await
             .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
             .json()
@@ -329,7 +326,7 @@ impl Qbit {
         &self,
         hash: impl AsRef<str> + Send + Sync,
     ) -> Result<Vec<Tracker>> {
-        self.get("torrents/trackers", Some(&HashArg::new(hash.as_ref())))
+        self.post("torrents/trackers", Some(&HashArg::new(hash.as_ref())))
             .await
             .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
             .json()
@@ -341,7 +338,7 @@ impl Qbit {
         &self,
         hash: impl AsRef<str> + Send + Sync,
     ) -> Result<Vec<WebSeed>> {
-        self.get("torrents/webseeds", Some(&HashArg::new(hash.as_ref())))
+        self.post("torrents/webseeds", Some(&HashArg::new(hash.as_ref())))
             .await
             .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
             .json()
@@ -361,7 +358,7 @@ impl Qbit {
             indexes: Option<String>,
         }
 
-        self.get(
+        self.post(
             "torrents/files",
             Some(&Arg {
                 hash: hash.as_ref(),
@@ -379,7 +376,7 @@ impl Qbit {
         &self,
         hash: impl AsRef<str> + Send + Sync,
     ) -> Result<Vec<PieceState>> {
-        self.get("torrents/pieceStates", Some(&HashArg::new(hash.as_ref())))
+        self.post("torrents/pieceStates", Some(&HashArg::new(hash.as_ref())))
             .await
             .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
             .json()
@@ -391,7 +388,7 @@ impl Qbit {
         &self,
         hash: impl AsRef<str> + Send + Sync,
     ) -> Result<Vec<String>> {
-        self.get("torrents/pieceHashes", Some(&HashArg::new(hash.as_ref())))
+        self.post("torrents/pieceHashes", Some(&HashArg::new(hash.as_ref())))
             .await
             .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
             .json()
@@ -400,7 +397,7 @@ impl Qbit {
     }
 
     pub async fn pause_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        self.get("torrents/pause", Some(&HashesArg::new(hashes)))
+        self.post("torrents/pause", Some(&HashesArg::new(hashes)))
             .await?
             .json()
             .await
@@ -408,7 +405,7 @@ impl Qbit {
     }
 
     pub async fn resume_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        self.get("torrents/resume", Some(&HashesArg::new(hashes)))
+        self.post("torrents/resume", Some(&HashesArg::new(hashes)))
             .await?
             .json()
             .await
@@ -426,7 +423,7 @@ impl Qbit {
             hashes: Hashes,
             delete_files: Option<bool>,
         }
-        self.get(
+        self.post(
             "torrents/delete",
             Some(&Arg {
                 hashes: hashes.into(),
@@ -440,7 +437,7 @@ impl Qbit {
     }
 
     pub async fn recheck_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        self.get("torrents/recheck", Some(&HashesArg::new(hashes)))
+        self.post("torrents/recheck", Some(&HashesArg::new(hashes)))
             .await?
             .json()
             .await
@@ -448,7 +445,7 @@ impl Qbit {
     }
 
     pub async fn reannounce_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        self.get("torrents/reannounce", Some(&HashesArg::new(hashes)))
+        self.post("torrents/reannounce", Some(&HashesArg::new(hashes)))
             .await?
             .json()
             .await
@@ -459,7 +456,7 @@ impl Qbit {
         &self,
         arg: impl Borrow<AddTorrentArg> + Send + Sync,
     ) -> Result<Vec<Torrent>> {
-        self.post("torrents/add", NONE, Some(arg.borrow()))
+        self.post("torrents/add", Some(arg.borrow()))
             .await?
             .json()
             .await
@@ -477,7 +474,7 @@ impl Qbit {
             urls: String,
         }
 
-        self.get(
+        self.post(
             "torrents/addTrackers",
             Some(&Arg {
                 hash: hash.as_ref(),
@@ -503,7 +500,7 @@ impl Qbit {
             orig_url: Url,
             new_url: Url,
         }
-        self.get(
+        self.post(
             "torrents/editTracker",
             Some(&EditTrackerArg {
                 hash: hash.as_ref(),
@@ -534,7 +531,7 @@ impl Qbit {
             urls: Sep<Url, '|'>,
         }
 
-        self.get(
+        self.post(
             "torrents/removeTrackers",
             Some(&Arg {
                 hash: hash.as_ref(),
@@ -557,7 +554,7 @@ impl Qbit {
             peers: Sep<String, '|'>,
         }
 
-        self.get(
+        self.post(
             "torrents/addPeers",
             Some(&AddPeersArg {
                 hash: hashes.into().to_string(),
@@ -578,7 +575,7 @@ impl Qbit {
     }
 
     pub async fn increase_priority(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        self.get("torrents/increasePrio", Some(&HashesArg::new(hashes)))
+        self.post("torrents/increasePrio", Some(&HashesArg::new(hashes)))
             .await?
             .map_status(|c| {
                 if c == StatusCode::CONFLICT {
@@ -591,7 +588,7 @@ impl Qbit {
     }
 
     pub async fn decrease_priority(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        self.get("torrents/decreasePrio", Some(&HashesArg::new(hashes)))
+        self.post("torrents/decreasePrio", Some(&HashesArg::new(hashes)))
             .await?
             .map_status(|c| {
                 if c == StatusCode::CONFLICT {
@@ -604,7 +601,7 @@ impl Qbit {
     }
 
     pub async fn maximal_priority(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        self.get("torrents/topPrio", Some(&HashesArg::new(hashes)))
+        self.post("torrents/topPrio", Some(&HashesArg::new(hashes)))
             .await?
             .map_status(|c| {
                 if c == StatusCode::CONFLICT {
@@ -617,7 +614,7 @@ impl Qbit {
     }
 
     pub async fn minimal_priority(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        self.get("torrents/bottomPrio", Some(&HashesArg::new(hashes)))
+        self.post("torrents/bottomPrio", Some(&HashesArg::new(hashes)))
             .await?
             .map_status(|c| {
                 if c == StatusCode::CONFLICT {
@@ -642,7 +639,7 @@ impl Qbit {
             priority: Priority,
         }
 
-        self.get(
+        self.post(
             "torrents/filePrio",
             Some(&SetFilePriorityArg {
                 hash: hash.as_ref(),
@@ -664,7 +661,7 @@ impl Qbit {
         &self,
         hashes: impl Into<Hashes> + Send + Sync,
     ) -> Result<HashMap<String, u64>> {
-        self.get("torrents/downloadLimit", Some(&HashesArg::new(hashes)))
+        self.post("torrents/downloadLimit", Some(&HashesArg::new(hashes)))
             .await?
             .json()
             .await
@@ -682,7 +679,7 @@ impl Qbit {
             limit: u64,
         }
 
-        self.get(
+        self.post(
             "torrents/downloadLimit",
             Some(&Arg {
                 hashes: hashes.into().to_string(),
@@ -697,7 +694,7 @@ impl Qbit {
         &self,
         arg: impl Borrow<SetTorrentSharedLimitArg> + Send + Sync,
     ) -> Result<()> {
-        self.get("torrents/setShareLimits", Some(arg.borrow()))
+        self.post("torrents/setShareLimits", Some(arg.borrow()))
             .await?
             .end()
     }
@@ -706,7 +703,7 @@ impl Qbit {
         &self,
         hashes: impl Into<Hashes> + Send + Sync,
     ) -> Result<HashMap<String, u64>> {
-        self.get("torrents/uploadLimit", Some(&HashesArg::new(hashes)))
+        self.post("torrents/uploadLimit", Some(&HashesArg::new(hashes)))
             .await?
             .json()
             .await
@@ -724,7 +721,7 @@ impl Qbit {
             limit: u64,
         }
 
-        self.get(
+        self.post(
             "torrents/uploadLimit",
             Some(&Arg {
                 hashes: hashes.into().to_string(),
@@ -746,7 +743,7 @@ impl Qbit {
             location: &'a Path,
         }
 
-        self.get(
+        self.post(
             "torrents/setLocation",
             Some(&Arg {
                 hashes: hashes.into().to_string(),
@@ -774,7 +771,7 @@ impl Qbit {
             name: &'a str,
         }
 
-        self.get(
+        self.post(
             "torrents/rename",
             Some(&RenameArg {
                 hash: hash.as_ref(),
@@ -801,7 +798,7 @@ impl Qbit {
             category: &'a str,
         }
 
-        self.get(
+        self.post(
             "torrents/setCategory",
             Some(&Arg {
                 hashes: hashes.into().to_string(),
@@ -820,7 +817,7 @@ impl Qbit {
     }
 
     pub async fn get_categories(&self) -> Result<HashMap<String, Category>> {
-        self.get("torrents/categories", NONE)
+        self.get("torrents/categories")
             .await?
             .json()
             .await
@@ -838,7 +835,7 @@ impl Qbit {
             save_path: &'a Path,
         }
 
-        self.get(
+        self.post(
             "torrents/createCategory",
             Some(&Arg {
                 category: category.as_str(),
@@ -860,7 +857,7 @@ impl Qbit {
             save_path: &'a Path,
         }
 
-        self.get(
+        self.post(
             "torrents/createCategory",
             Some(&Arg {
                 category: category.as_str(),
@@ -887,7 +884,7 @@ impl Qbit {
             categories: &'a str,
         }
 
-        self.get(
+        self.post(
             "torrents/removeCategories",
             Some(&Arg {
                 categories: &categories.into().to_string(),
@@ -908,7 +905,7 @@ impl Qbit {
             tags: &'a str,
         }
 
-        self.get(
+        self.post(
             "torrents/addTags",
             Some(&Arg {
                 hashes: hashes.into().to_string(),
@@ -931,7 +928,7 @@ impl Qbit {
             tags: Option<String>,
         }
 
-        self.get(
+        self.post(
             "torrents/removeTags",
             Some(&Arg {
                 hashes: hashes.into().to_string(),
@@ -943,7 +940,7 @@ impl Qbit {
     }
 
     pub async fn get_all_tags(&self) -> Result<Vec<String>> {
-        self.get("torrents/tags", NONE)
+        self.get("torrents/tags")
             .await?
             .json()
             .await
@@ -956,7 +953,7 @@ impl Qbit {
             tags: String,
         }
 
-        self.get(
+        self.post(
             "torrents/createTags",
             Some(&Arg {
                 tags: tags.into().to_string(),
@@ -972,7 +969,7 @@ impl Qbit {
             tags: String,
         }
 
-        self.get(
+        self.post(
             "torrents/deleteTags",
             Some(&Arg {
                 tags: tags.into().to_string(),
@@ -993,7 +990,7 @@ impl Qbit {
             enable: bool,
         }
 
-        self.get(
+        self.post(
             "torrents/setAutoManagement",
             Some(&Arg {
                 hashes: hashes.into().to_string(),
@@ -1008,7 +1005,7 @@ impl Qbit {
         &self,
         hashes: impl Into<Hashes> + Send + Sync,
     ) -> Result<()> {
-        self.get(
+        self.post(
             "torrents/toggleSequentialDownload",
             Some(&HashesArg::new(hashes)),
         )
@@ -1020,7 +1017,7 @@ impl Qbit {
         &self,
         hashes: impl Into<Hashes> + Send + Sync,
     ) -> Result<()> {
-        self.get(
+        self.post(
             "torrents/toggleFirstLastPiecePrio",
             Some(&HashesArg::new(hashes)),
         )
@@ -1039,7 +1036,7 @@ impl Qbit {
             value: bool,
         }
 
-        self.get(
+        self.post(
             "torrents/setForceStart",
             Some(&Arg {
                 hashes: hashes.into().to_string(),
@@ -1061,7 +1058,7 @@ impl Qbit {
             value: bool,
         }
 
-        self.get(
+        self.post(
             "torrents/setSuperSeeding",
             Some(&Arg {
                 hashes: hashes.into().to_string(),
@@ -1085,7 +1082,7 @@ impl Qbit {
             new_path: &'a Path,
         }
 
-        self.get(
+        self.post(
             "torrents/renameFile",
             Some(&Arg {
                 hash: hash.as_ref(),
@@ -1117,7 +1114,7 @@ impl Qbit {
             new_path: &'a Path,
         }
 
-        self.get(
+        self.post(
             "torrents/renameFolder",
             Some(&Arg {
                 hash: hash.as_ref(),
@@ -1151,8 +1148,8 @@ impl Qbit {
         if re_login {
             debug!("Cookie not found, logging in");
             self.client
-                .request(Method::GET, self.url("auth/login"))
-                .query(&self.credential)
+                .request(Method::POST, self.url("auth/login"))
+                .form(&self.credential)
                 .send()
                 .await?
                 .map_status(|code| match code as _ {
@@ -1160,13 +1157,7 @@ impl Qbit {
                     _ => None,
                 })?
                 .extract::<Cookie>()?
-                .pipe(|Cookie(cookie)| {
-                    self.cookie
-                        .lock()
-                        .unwrap()
-                        .replace(cookie)
-                        .expect("Cookie should not be set yet")
-                });
+                .pipe(|Cookie(cookie)| self.cookie.lock().unwrap().replace(cookie));
 
             debug!("Log in success");
         } else {
@@ -1180,7 +1171,6 @@ impl Qbit {
         &self,
         method: Method,
         path: &'static str,
-        qs: Option<&(impl Serialize + Sync)>,
         body: Option<&(impl Serialize + Sync)>,
     ) -> Result<Response> {
         for i in 0..3 {
@@ -1198,12 +1188,8 @@ impl Qbit {
                             .expect("Cookie should be set after login")
                     });
 
-            if let Some(qs) = qs {
-                req = req.query(qs);
-            }
-
             if let Some(ref body) = body {
-                req = req.json(body)
+                req = req.form(body)
             }
 
             trace!(request = ?req, "Sending request");
@@ -1232,18 +1218,18 @@ impl Qbit {
     async fn get(
         &self,
         path: &'static str,
-        qs: Option<&(impl Serialize + Sync)>,
+        // qs: Option<&(impl Serialize + Sync)>,
     ) -> Result<Response> {
-        self.request(Method::GET, path, qs, NONE).await
+        self.request(Method::GET, path, NONE).await
     }
 
     async fn post(
         &self,
         path: &'static str,
-        qs: Option<&(impl Serialize + Sync)>,
+        // qs: Option<&(impl Serialize + Sync)>,
         body: Option<&(impl Serialize + Sync)>,
     ) -> Result<Response> {
-        self.request(Method::POST, path, qs, body).await
+        self.request(Method::POST, path, body).await
     }
 }
 
@@ -1265,6 +1251,9 @@ pub enum Error {
 
     #[error(transparent)]
     ApiError(#[from] ApiError),
+
+    #[error("serde_json error: {0}")]
+    SerdeJsonError(#[from] serde_json::Error),
 }
 
 /// Errors defined and returned by the API
@@ -1369,12 +1358,9 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_a() {
+    async fn test_preference() {
         let client = prepare().await.unwrap();
 
-        client
-            .set_preferences(&Preferences::default())
-            .await
-            .unwrap();
+        client.get_preferences().await.unwrap();
     }
 }

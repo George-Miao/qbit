@@ -15,13 +15,12 @@ qbit-rs = "0.3"
 
 And this to your crate:
 
-```rust
-use qbit_rs::Qbit;
-use http_client::h1::H1Client;
+```rust,ignore
+use qbit_rs::{Qbit, Credential};
 
 let credential = Credential::new("admin", "adminadmin");
-let api = Qbit::new(url, credential, H1Client::new()); // Or alternatively use `Qbit::new_with_cookie`
-let torrents = api.get_torrent_list().await?;
+let api = Qbit::new(url, credential); // Or alternatively use `Qbit::new_with_client`
+let torrents = api.get_version().await;
 ```
 
 For more methods, see [`Qbit`](https://docs.rs/qbit-rs/latest/qbit-rs/struct.Qbit.html).
