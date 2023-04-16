@@ -382,6 +382,7 @@ pub struct GetTorrentListArg {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(untagged)]
 pub enum TorrentSource {
     /// URLs
     Urls { urls: Sep<Url, '\n'> },
@@ -389,12 +390,20 @@ pub enum TorrentSource {
     TorrentFiles { torrents: Vec<u8> },
 }
 
+impl Default for TorrentSource {
+    fn default() -> Self {
+        TorrentSource::Urls {
+            urls: Sep::from(vec![]),
+        }
+    }
+}
+
 #[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
 #[cfg_attr(
     feature = "builder",
     builder(field_defaults(default, setter(strip_option)))
 )]
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, Default)]
 #[skip_serializing_none]
 pub struct AddTorrentArg {
     #[serde(flatten)]

@@ -19,7 +19,7 @@ use reqwest::{
 };
 use serde::Serialize;
 use serde_with::skip_serializing_none;
-use tap::{Pipe, TapFallible};
+use tap::{Pipe, Tap, TapFallible};
 use tracing::{debug, trace, warn};
 use url::Url;
 
@@ -399,17 +399,13 @@ impl Qbit {
     pub async fn pause_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
         self.post("torrents/pause", Some(&HashesArg::new(hashes)))
             .await?
-            .json()
-            .await
-            .map_err(Into::into)
+            .end()
     }
 
     pub async fn resume_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
         self.post("torrents/resume", Some(&HashesArg::new(hashes)))
             .await?
-            .json()
-            .await
-            .map_err(Into::into)
+            .end()
     }
 
     pub async fn delete_torrents(
@@ -431,36 +427,23 @@ impl Qbit {
             }),
         )
         .await?
-        .json()
-        .await
-        .map_err(Into::into)
+        .end()
     }
 
     pub async fn recheck_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
         self.post("torrents/recheck", Some(&HashesArg::new(hashes)))
             .await?
-            .json()
-            .await
-            .map_err(Into::into)
+            .end()
     }
 
     pub async fn reannounce_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
         self.post("torrents/reannounce", Some(&HashesArg::new(hashes)))
             .await?
-            .json()
-            .await
-            .map_err(Into::into)
+            .end()
     }
 
-    pub async fn add_torrent(
-        &self,
-        arg: impl Borrow<AddTorrentArg> + Send + Sync,
-    ) -> Result<Vec<Torrent>> {
-        self.post("torrents/add", Some(arg.borrow()))
-            .await?
-            .json()
-            .await
-            .map_err(Into::into)
+    pub async fn add_torrent(&self, arg: impl Borrow<AddTorrentArg> + Send + Sync) -> Result<()> {
+        self.post("torrents/add", Some(arg.borrow())).await?.end()
     }
 
     pub async fn add_trackers(
@@ -1200,7 +1183,7 @@ impl Qbit {
                     StatusCode::FORBIDDEN => Some(Error::ApiError(ApiError::NotLoggedIn)),
                     _ => None,
                 })
-                .tap_ok(|res| trace!(?res));
+                .tap_ok(|response| trace!(?response));
             match res {
                 Err(Error::ApiError(ApiError::NotLoggedIn)) => {
                     // Retry
@@ -1215,18 +1198,13 @@ impl Qbit {
     }
 
     // pub async fn add_torrent(&self, urls: )
-    async fn get(
-        &self,
-        path: &'static str,
-        // qs: Option<&(impl Serialize + Sync)>,
-    ) -> Result<Response> {
+    async fn get(&self, path: &'static str) -> Result<Response> {
         self.request(Method::GET, path, NONE).await
     }
 
     async fn post(
         &self,
         path: &'static str,
-        // qs: Option<&(impl Serialize + Sync)>,
         body: Option<&(impl Serialize + Sync)>,
     ) -> Result<Response> {
         self.request(Method::POST, path, body).await
@@ -1362,5 +1340,22 @@ mod test {
         let client = prepare().await.unwrap();
 
         client.get_preferences().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_add_torrent() {
+        let client = prepare().await.unwrap();
+        let arg = AddTorrentArg {
+            source: TorrentSource::Urls {
+                urls: vec![
+                    "https://releases.ubuntu.com/20.04/ubuntu-20.04.1-desktop-amd64.iso.torrent"
+                        .parse()
+                        .unwrap(),
+                ]
+                .into(),
+            },
+            ..AddTorrentArg::default()
+        };
+        client.add_torrent(arg).await.unwrap();
     }
 }
