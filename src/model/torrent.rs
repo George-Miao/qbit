@@ -273,11 +273,13 @@ pub struct TorrentContent {
     /// File priority. See possible values here below,
     pub priority: Priority,
     /// True if file is seeding/complete,
-    pub is_seed: bool,
+    pub is_seed: Option<bool>,
     /// The first number is the starting piece index and the second number is
     /// the ending piece index (inclusive),
+    #[serde(default)]
     pub piece_range: Vec<u64>,
     /// Percentage of file pieces currently available (percentage/100),
+    #[serde(default)]
     pub availability: f64,
 }
 

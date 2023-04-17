@@ -19,7 +19,7 @@ use reqwest::{
 };
 use serde::Serialize;
 use serde_with::skip_serializing_none;
-use tap::{Pipe, Tap, TapFallible};
+use tap::{Pipe, TapFallible};
 use tracing::{debug, trace, warn};
 use url::Url;
 
