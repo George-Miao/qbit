@@ -1059,6 +1059,7 @@ impl Qbit {
         new_path: impl AsRef<Path> + Send + Sync,
     ) -> Result<()> {
         #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
         struct Arg<'a> {
             hash: &'a str,
             old_path: &'a Path,
@@ -1091,6 +1092,7 @@ impl Qbit {
         new_path: impl AsRef<Path> + Send + Sync,
     ) -> Result<()> {
         #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
         struct Arg<'a> {
             hash: &'a str,
             old_path: &'a Path,
