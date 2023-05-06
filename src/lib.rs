@@ -415,6 +415,7 @@ impl Qbit {
     ) -> Result<()> {
         #[derive(Serialize)]
         #[skip_serializing_none]
+        #[serde(rename_all = "camelCase")]
         struct Arg {
             hashes: Hashes,
             delete_files: Option<bool>,
@@ -813,6 +814,7 @@ impl Qbit {
         save_path: impl AsRef<Path> + Send + Sync,
     ) -> Result<()> {
         #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
         struct Arg<'a> {
             category: &'a str,
             save_path: &'a Path,
@@ -835,6 +837,7 @@ impl Qbit {
         save_path: impl AsRef<Path> + Send + Sync,
     ) -> Result<()> {
         #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
         struct Arg<'a> {
             category: &'a str,
             save_path: &'a Path,

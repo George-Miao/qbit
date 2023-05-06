@@ -41,7 +41,7 @@ pub struct Torrent {
     /// Absolute path of torrent content (root path for multifile torrents,
     /// absolute file path for singlefile torrents)
     pub content_path: Option<String>,
-    /// Torrent download speed limit (bytes/s). `-1` if ulimited.
+    /// Torrent download speed limit (bytes/s). `-1` if unlimited.
     pub dl_limit: Option<i64>,
     /// Torrent download speed (bytes/s)
     pub dlspeed: Option<i64>,
