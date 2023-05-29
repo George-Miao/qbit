@@ -20,8 +20,8 @@ pub struct Credential {
 }
 
 impl Credential {
-    pub fn new(username: String, password: String) -> Self {
-        Self { username, password }
+    pub fn new(username: impl Into<String>, password: impl Into<String>) -> Self {
+        Self { username: username.into(), password: password.into() }
     }
 
     /// Return a dummy credential when you passed in the cookie instead of
