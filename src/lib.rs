@@ -63,9 +63,9 @@ impl Qbit {
         }
     }
 
-    pub fn with_cookie(self, cookie: String) -> Self {
+    pub fn with_cookie(self, cookie: impl Into<String>) -> Self {
         Self {
-            cookie: Mutex::from(Some(cookie)),
+            cookie: Mutex::from(Some(cookie.into())),
             ..self
         }
     }
