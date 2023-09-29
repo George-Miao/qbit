@@ -103,7 +103,7 @@ impl Qbit {
     }
 
     pub async fn shutdown(&self) -> Result<()> {
-        self.get("app/shutdown").await?.end()
+        self.post("app/shutdown", NONE).await?.end()
     }
 
     pub async fn get_preferences(&self) -> Result<Preferences> {
