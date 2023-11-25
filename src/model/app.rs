@@ -173,7 +173,7 @@ pub struct Preferences {
     /// built against libtorrent version 0.16.X and higher
     pub anonymous_mode: Option<bool>,
     /// See list of possible values here below
-    pub proxy_type: Option<i64>,
+    pub proxy_type: Option<String>,
     /// Proxy IP address or domain name
     pub proxy_ip: Option<String>,
     /// Proxy port
