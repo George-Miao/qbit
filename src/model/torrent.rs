@@ -300,6 +300,8 @@ pub enum Priority {
     DoNotDownload = 0,
     /// Normal priority
     Normal        = 1,
+    /// Mixed
+    Mixed = 4,
     /// High priority
     High          = 6,
     /// Maximal priority
