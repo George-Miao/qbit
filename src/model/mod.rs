@@ -21,7 +21,10 @@ pub struct Credential {
 
 impl Credential {
     pub fn new(username: impl Into<String>, password: impl Into<String>) -> Self {
-        Self { username: username.into(), password: password.into() }
+        Self {
+            username: username.into(),
+            password: password.into(),
+        }
     }
 
     /// Return a dummy credential when you passed in the cookie instead of
@@ -83,16 +86,16 @@ pub struct Tracker {
 #[repr(i8)]
 pub enum TrackerStatus {
     /// Tracker is disabled (used for DHT, PeX, and LSD)
-    Disabled     = 0,
+    Disabled = 0,
     /// Tracker has not been contacted yet
     NotContacted = 1,
     /// Tracker has been contacted and is working
-    Working      = 2,
+    Working = 2,
     /// Tracker is updating
-    Updating     = 3,
+    Updating = 3,
     /// Tracker has been contacted, but it is not working (or doesn't send
     /// proper replies)
-    NotWorking   = 4,
+    NotWorking = 4,
 }
 
 /// A wrapper around `Vec<T>` that implements `FromStr` and `ToString` as
