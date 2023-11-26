@@ -1363,4 +1363,14 @@ mod test {
         };
         client.add_torrent(arg).await.unwrap();
     }
+
+    #[tokio::test]
+    async fn test_get_torrent_list() {
+        let client = prepare().await.unwrap();
+        let list = client
+            .get_torrent_list(GetTorrentListArg::default())
+            .await
+            .unwrap();
+        print!("{:#?}", list);
+    }
 }
