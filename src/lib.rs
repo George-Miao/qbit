@@ -7,16 +7,13 @@ use std::{
     borrow::Borrow,
     collections::HashMap,
     fmt::Debug,
-    ops::Deref,
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{Mutex, MutexGuard},
 };
 
 pub mod model;
-use reqwest::{
-    header::{self, ToStrError},
-    Client, Method, Response, StatusCode,
-};
+pub use builder::QbitBuilder;
+use reqwest::{header, Client, Method, Response, StatusCode};
 use serde::Serialize;
 use serde_with::skip_serializing_none;
 use tap::{Pipe, TapFallible};
@@ -25,29 +22,76 @@ use url::Url;
 
 use crate::{ext::*, model::*};
 
+mod builder;
 mod ext;
+
+enum LoginState {
+    CookieProvided {
+        cookie: String,
+    },
+    NotLoggedIn {
+        credential: Credential,
+    },
+    LoggedIn {
+        cookie: String,
+        credential: Credential,
+    },
+}
+
+impl LoginState {
+    fn as_cookie(&self) -> Option<&str> {
+        match self {
+            Self::CookieProvided { cookie } => Some(cookie),
+            Self::NotLoggedIn { .. } => None,
+            Self::LoggedIn { cookie, .. } => Some(cookie),
+        }
+    }
+
+    fn as_credential(&self) -> Option<&Credential> {
+        match self {
+            Self::CookieProvided { .. } => None,
+            Self::NotLoggedIn { credential } => Some(credential),
+            Self::LoggedIn { credential, .. } => Some(credential),
+        }
+    }
+
+    fn add_cookie(&mut self, cookie: String) {
+        match self {
+            Self::CookieProvided { .. } => {}
+            Self::LoggedIn { credential, .. } | Self::NotLoggedIn { credential } => {
+                *self = Self::LoggedIn {
+                    cookie,
+                    credential: credential.clone(),
+                };
+            }
+        }
+    }
+}
 
 /// Main entry point of the library. It provides a high-level API to interact
 /// with qBittorrent WebUI API.
 pub struct Qbit {
     client: Client,
     endpoint: Url,
-    credential: Credential,
-    cookie: Mutex<Option<String>>,
+    state: Mutex<LoginState>,
 }
 
 impl Qbit {
+    /// Create a new [`QbitBuilder`] to build a [`Qbit`] instance.
+    pub fn builder() -> QbitBuilder {
+        QbitBuilder::new()
+    }
+
     pub fn new_with_client<U>(endpoint: U, credential: Credential, client: Client) -> Self
     where
         U: TryInto<Url>,
         U::Error: Debug,
     {
-        Self {
-            client,
-            endpoint: endpoint.try_into().expect("Invalid endpoint URL"),
-            credential,
-            cookie: Mutex::new(None),
-        }
+        Self::builder()
+            .endpoint(endpoint)
+            .credential(credential)
+            .client(client)
+            .build()
     }
 
     pub fn new<U>(endpoint: U, credential: Credential) -> Self
@@ -55,23 +99,25 @@ impl Qbit {
         U: TryInto<Url>,
         U::Error: Debug,
     {
-        Self {
-            client: Client::new(),
-            endpoint: endpoint.try_into().expect("Invalid endpoint URL"),
-            credential,
-            cookie: Mutex::from(None),
-        }
+        Self::new_with_client(endpoint, credential, Client::new())
     }
 
+    #[deprecated = "Use `QbitBuilder::cookie` instead"]
     pub fn with_cookie(self, cookie: impl Into<String>) -> Self {
         Self {
-            cookie: Mutex::from(Some(cookie.into())),
+            state: Mutex::from(LoginState::CookieProvided {
+                cookie: cookie.into(),
+            }),
             ..self
         }
     }
 
-    pub async fn get_cookie(&self) -> Result<Option<String>> {
-        Ok(self.cookie.lock().unwrap().deref().clone())
+    pub async fn get_cookie(&self) -> Option<String> {
+        self.state
+            .lock()
+            .unwrap()
+            .as_cookie()
+            .map(ToOwned::to_owned)
     }
 
     pub async fn logout(&self) -> Result<()> {
@@ -1129,15 +1175,25 @@ impl Qbit {
             .expect("Invalid API endpoint")
     }
 
+    fn state(&self) -> MutexGuard<'_, LoginState> {
+        self.state.lock().unwrap()
+    }
+
     /// Log in to qBittorrent. Set force to `true` to forcefully re-login
     /// regardless if cookie is already set.
     pub async fn login(&self, force: bool) -> Result<()> {
-        let re_login = force || { self.cookie.lock().unwrap().is_none() };
+        let re_login = force || { self.state().as_cookie().is_none() };
         if re_login {
             debug!("Cookie not found, logging in");
             self.client
                 .request(Method::POST, self.url("auth/login"))
-                .form(&self.credential)
+                .pipe(|req| {
+                    req.form(
+                        self.state()
+                            .as_credential()
+                            .expect("Credential should be set if cookie is not set"),
+                    )
+                })
                 .send()
                 .await?
                 .map_status(|code| match code as _ {
@@ -1145,7 +1201,7 @@ impl Qbit {
                     _ => None,
                 })?
                 .extract::<Cookie>()?
-                .pipe(|Cookie(cookie)| self.cookie.lock().unwrap().replace(cookie));
+                .pipe(|Cookie(cookie)| self.state.lock().unwrap().add_cookie(cookie));
 
             debug!("Log in success");
         } else {
@@ -1169,10 +1225,8 @@ impl Qbit {
                 self.client
                     .request(method.clone(), self.url(path))
                     .header(header::COOKIE, {
-                        self.cookie
-                            .lock()
-                            .unwrap()
-                            .as_deref()
+                        self.state()
+                            .as_cookie()
                             .expect("Cookie should be set after login")
                     });
 
@@ -1229,8 +1283,8 @@ pub enum Error {
     #[error("API returned unknown status code: {0}")]
     UnknownHttpCode(StatusCode),
 
-    #[error("Non utf-8 header")]
-    ToStrError(#[from] ToStrError),
+    #[error("Non ASCII header")]
+    NonAsciiHeader,
 
     #[error(transparent)]
     ApiError(#[from] ApiError),
@@ -1266,13 +1320,13 @@ pub enum ApiError {
     #[error("Torrent queueing is not enabled")]
     QueueingDisabled,
 
-    #[error("Torrent metadata hasn't downloaded yet or At least one file id was not found")]
+    #[error("Torrent metadata hasn't downloaded yet or at least one file id was not found")]
     MetaNotDownloadedOrIdNotFound,
 
     #[error("Save path is empty")]
     SavePathEmpty,
 
-    #[error("User does not have write access to directory")]
+    #[error("User does not have write access to the directory")]
     NoWriteAccess,
 
     #[error("Unable to create save path directory")]
@@ -1294,6 +1348,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 mod test {
     use std::{
         env,
+        ops::Deref,
         sync::{LazyLock, OnceLock},
     };
 

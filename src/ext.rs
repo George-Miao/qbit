@@ -19,7 +19,8 @@ impl FromResponse for Cookie {
             .ok_or(Error::BadResponse {
                 explain: "Failed to extract cookie from response",
             })?
-            .to_str()?
+            .to_str()
+            .map_err(|_| Error::NonAsciiHeader)?
             .to_owned();
         Ok(Self(cookie))
     }
