@@ -16,7 +16,8 @@ qbit-rs = "0.3"
 And this to your crate:
 
 ```rust,ignore
-use qbit_rs::{Qbit, Credential};
+use qbit_rs::Qbit;
+use qbit_rs::model::Credential;
 
 let credential = Credential::new("admin", "adminadmin");
 let api = Qbit::new(url, credential); // Or alternatively use `Qbit::new_with_client`

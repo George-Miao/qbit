@@ -27,7 +27,8 @@ builder = ["dep:typed-builder"]
 [dependencies]
 typed-builder = { version = "0.14.0", optional = true }
 serde         = { version = "1.0.159", features = ["derive"] }
-
+reqwest       = { version = "0.11.16", features = ["json"] }
+url           = { version = "2.3.1", features = ["serde"] }
 
 mod_use     = "0.2.1"
 serde-value = "0.7.0"
@@ -36,9 +37,7 @@ serde_with  = "2.3.2"
 tap         = "1.0.1"
 thiserror   = "1.0.40"
 tracing     = "0.1.37"
-reqwest     = { version = "0.11.16", features = ["json"] }
-url = { version = "2.3.1", features = ["serde"] }
-serde_json = "1.0.96"
+serde_json  = "1.0.96"
 
 [dev-dependencies]
 tokio = { version = "1.27.0", features = ["full"] }
