@@ -1,5 +1,8 @@
 # Qbit-rs
 
+[<img alt="github" src="https://img.shields.io/badge/George--Miao/qbit--rs-A8E6CF?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/George-Miao/qbit)
+[<img alt="documentation" src="https://img.shields.io/badge/doc-docs.rs-DCEDC1?style=for-the-badge&labelColor=555555" height="20">](https://docs.rs/qbit-rs)
+
 A Rust library for interacting with qBittorrent's Web API.
 
 Implemented according to [WebUI API (qBittorrent 4.1)](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)).
@@ -19,8 +22,8 @@ And this to your crate:
 use qbit_rs::Qbit;
 use qbit_rs::model::Credential;
 
-let credential = Credential::new("admin", "adminadmin");
-let api = Qbit::new(url, credential); // Or alternatively use `Qbit::new_with_client`
+let credential = Credential::new("username", "password");
+let api = Qbit::new("http://my-qb-instance.domain", credential);
 let torrents = api.get_version().await;
 ```
 
