@@ -3,6 +3,8 @@ use std::{collections::HashMap, path::PathBuf};
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 use serde_with::skip_serializing_none;
 
+use crate::model::IntOrStr;
+
 #[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq)]
 pub struct BuildInfo {
     /// QT version
@@ -172,8 +174,9 @@ pub struct Preferences {
     /// [here](Anonymous-Mode); this option is only available in qBittorent
     /// built against libtorrent version 0.16.X and higher
     pub anonymous_mode: Option<bool>,
-    /// See list of possible values here below
-    pub proxy_type: Option<i64>,
+    /// In old versions (before 4.6.1 or early), this returns an interger. In
+    /// newer versions, this returns a string.
+    pub proxy_type: Option<IntOrStr>,
     /// Proxy IP address or domain name
     pub proxy_ip: Option<String>,
     /// Proxy port

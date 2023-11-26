@@ -98,6 +98,23 @@ pub enum TrackerStatus {
     NotWorking   = 4,
 }
 
+/// Type that can be either an integer or a string.
+#[derive(Debug, Clone, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(untagged)]
+pub enum IntOrStr {
+    Int(i64),
+    Str(String),
+}
+
+impl ToString for IntOrStr {
+    fn to_string(&self) -> String {
+        match self {
+            IntOrStr::Int(i) => i.to_string(),
+            IntOrStr::Str(s) => s.clone(),
+        }
+    }
+}
+
 /// A wrapper around `Vec<T>` that implements `FromStr` and `ToString` as
 /// `C`-separated strings where `C` is a char.
 #[derive(Debug, Clone, PartialEq, Eq, SerializeDisplay, DeserializeFromStr)]
