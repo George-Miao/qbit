@@ -301,7 +301,7 @@ pub enum Priority {
     /// Normal priority
     Normal        = 1,
     /// Mixed
-    Mixed = 4,
+    Mixed         = 4,
     /// High priority
     High          = 6,
     /// Maximal priority
