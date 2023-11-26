@@ -312,7 +312,7 @@ impl Qbit {
 
     pub async fn get_torrent_properties(
         &self,
-        hash: impl AsRef<str> + Sync + Send + Sync,
+        hash: impl AsRef<str> + Send + Sync,
     ) -> Result<TorrentProperty> {
         self.post("torrents/properties", Some(&HashArg::new(hash.as_ref())))
             .await
