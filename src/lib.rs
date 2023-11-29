@@ -189,7 +189,7 @@ impl Qbit {
     }
 
     pub async fn get_logs(&self, arg: impl Borrow<GetLogsArg> + Send + Sync) -> Result<Vec<Log>> {
-        self.post("log/main", Some(arg.borrow()))
+        self.get_with("log/main", arg.borrow())
             .await?
             .json()
             .await
@@ -206,11 +206,11 @@ impl Qbit {
             last_known_id: Option<i64>,
         }
 
-        self.post(
+        self.get_with(
             "log/peers",
-            Some(&Arg {
+            &Arg {
                 last_known_id: last_known_id.into(),
-            }),
+            },
         )
         .await?
         .json()
@@ -225,7 +225,7 @@ impl Qbit {
             rid: Option<i64>,
         }
 
-        self.post("sync/maindata", Some(&Arg { rid: rid.into() }))
+        self.get_with("sync/maindata", &Arg { rid: rid.into() })
             .await?
             .json()
             .await
@@ -243,12 +243,12 @@ impl Qbit {
             rid: Option<i64>,
         }
 
-        self.post(
+        self.get_with(
             "sync/torrentPeers",
-            Some(&Arg {
+            &Arg {
                 hash: hash.as_ref(),
                 rid: rid.into(),
-            }),
+            },
         )
         .await
         .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
@@ -349,7 +349,7 @@ impl Qbit {
     }
 
     pub async fn get_torrent_list(&self, arg: GetTorrentListArg) -> Result<Vec<Torrent>> {
-        self.post("torrents/info", Some(&arg))
+        self.get_with("torrents/info", &arg)
             .await?
             .json()
             .await
@@ -360,7 +360,7 @@ impl Qbit {
         &self,
         hash: impl AsRef<str> + Send + Sync,
     ) -> Result<TorrentProperty> {
-        self.post("torrents/properties", Some(&HashArg::new(hash.as_ref())))
+        self.get_with("torrents/properties", &HashArg::new(hash.as_ref()))
             .await
             .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
             .json()
@@ -372,7 +372,7 @@ impl Qbit {
         &self,
         hash: impl AsRef<str> + Send + Sync,
     ) -> Result<Vec<Tracker>> {
-        self.post("torrents/trackers", Some(&HashArg::new(hash.as_ref())))
+        self.get_with("torrents/trackers", &HashArg::new(hash.as_ref()))
             .await
             .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
             .json()
@@ -384,7 +384,7 @@ impl Qbit {
         &self,
         hash: impl AsRef<str> + Send + Sync,
     ) -> Result<Vec<WebSeed>> {
-        self.post("torrents/webseeds", Some(&HashArg::new(hash.as_ref())))
+        self.get_with("torrents/webseeds", &HashArg::new(hash.as_ref()))
             .await
             .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
             .json()
@@ -404,12 +404,12 @@ impl Qbit {
             indexes: Option<String>,
         }
 
-        self.post(
+        self.get_with(
             "torrents/files",
-            Some(&Arg {
+            &Arg {
                 hash: hash.as_ref(),
                 indexes: indexes.into().map(|s| s.to_string()),
-            }),
+            },
         )
         .await
         .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
@@ -422,7 +422,7 @@ impl Qbit {
         &self,
         hash: impl AsRef<str> + Send + Sync,
     ) -> Result<Vec<PieceState>> {
-        self.post("torrents/pieceStates", Some(&HashArg::new(hash.as_ref())))
+        self.get_with("torrents/pieceStates", &HashArg::new(hash.as_ref()))
             .await
             .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
             .json()
@@ -434,7 +434,7 @@ impl Qbit {
         &self,
         hash: impl AsRef<str> + Send + Sync,
     ) -> Result<Vec<String>> {
-        self.post("torrents/pieceHashes", Some(&HashArg::new(hash.as_ref())))
+        self.get_with("torrents/pieceHashes", &HashArg::new(hash.as_ref()))
             .await
             .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
             .json()
@@ -691,7 +691,7 @@ impl Qbit {
         &self,
         hashes: impl Into<Hashes> + Send + Sync,
     ) -> Result<HashMap<String, u64>> {
-        self.post("torrents/downloadLimit", Some(&HashesArg::new(hashes)))
+        self.get_with("torrents/downloadLimit", &HashesArg::new(hashes))
             .await?
             .json()
             .await
@@ -733,7 +733,7 @@ impl Qbit {
         &self,
         hashes: impl Into<Hashes> + Send + Sync,
     ) -> Result<HashMap<String, u64>> {
-        self.post("torrents/uploadLimit", Some(&HashesArg::new(hashes)))
+        self.get_with("torrents/uploadLimit", &HashesArg::new(hashes))
             .await?
             .json()
             .await
@@ -1231,9 +1231,12 @@ impl Qbit {
                     });
 
             if let Some(ref body) = body {
-                req = req.form(body)
+                match method {
+                    Method::GET => req = req.query(body),
+                    Method::POST => req = req.form(body),
+                    _ => unreachable!("Only GET and POST are supported"),
+                }
             }
-
             trace!(request = ?req, "Sending request");
             let res = req
                 .send()
@@ -1243,6 +1246,7 @@ impl Qbit {
                     _ => None,
                 })
                 .tap_ok(|response| trace!(?response));
+
             match res {
                 Err(Error::ApiError(ApiError::NotLoggedIn)) => {
                     // Retry
@@ -1256,9 +1260,16 @@ impl Qbit {
         Err(Error::ApiError(ApiError::NotLoggedIn))
     }
 
-    // pub async fn add_torrent(&self, urls: )
     async fn get(&self, path: &'static str) -> Result<Response> {
         self.request(Method::GET, path, NONE).await
+    }
+
+    async fn get_with(
+        &self,
+        path: &'static str,
+        param: &(impl Serialize + Sync),
+    ) -> Result<Response> {
+        self.request(Method::GET, path, Some(param)).await
     }
 
     async fn post(
