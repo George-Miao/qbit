@@ -1,7 +1,8 @@
 # Qbit-rs
 
-[<img alt="github" src="https://img.shields.io/badge/George--Miao/qbit--rs-A8E6CF?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/George-Miao/qbit)
-[<img alt="documentation" src="https://img.shields.io/badge/doc-docs.rs-DCEDC1?style=for-the-badge&labelColor=555555" height="20">](https://docs.rs/qbit-rs)
+[<img alt="crates.io" src="https://img.shields.io/crates/v/qbit-rs?style=for-the-badge&labelColor=555555&color=FFD3B6&logo=rust" height="20">](https://crates.io/crates/qbit-rs)
+[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-qbit--rs-DCEDC1?style=for-the-badge&labelColor=555555&logo=docs.rs" height="20">](https://docs.rs/qbit-rs)
+[<img alt="github" src="https://img.shields.io/badge/gitub-George--Miao-A8E6CF?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/George-Miao/qbit)
 
 A Rust library for interacting with qBittorrent's Web API.
 
