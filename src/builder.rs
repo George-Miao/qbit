@@ -101,3 +101,18 @@ where
         }
     }
 }
+
+#[test]
+fn test_builder() {
+    QbitBuilder::new()
+        .client(reqwest::Client::new())
+        .endpoint("http://localhost:8080")
+        .credential(Credential::new("admin", "adminadmin"))
+        .build();
+
+    QbitBuilder::new()
+        .client(reqwest::Client::new())
+        .endpoint("http://localhost:8080")
+        .cookie("SID=1234567890")
+        .build();
+}
