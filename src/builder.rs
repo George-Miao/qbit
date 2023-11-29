@@ -2,6 +2,7 @@
 
 use std::{fmt::Debug, sync::Mutex};
 
+use reqwest::Client;
 use tap::Pipe;
 use url::Url;
 
@@ -46,7 +47,7 @@ impl Default for QbitBuilder {
 }
 
 impl<C, R, E> QbitBuilder<C, R, E> {
-    pub fn client<Cl>(self, client: Cl) -> QbitBuilder<C, Cl, E> {
+    pub fn client(self, client: Client) -> QbitBuilder<C, Client, E> {
         QbitBuilder {
             credential: self.credential,
             client,
@@ -91,14 +92,24 @@ where
 {
     pub fn build(self) -> Qbit {
         let endpoint = self.endpoint.try_into().expect("Invalid endpoint");
-        let client = reqwest::Client::new();
         let state = self.credential.into_login_state().pipe(Mutex::new);
 
         Qbit {
+            client: self.client,
             endpoint,
-            client,
             state,
         }
+    }
+}
+
+impl<C, U> QbitBuilder<C, (), U>
+where
+    C: IntoLoginState,
+    U: TryInto<Url>,
+    U::Error: Debug,
+{
+    pub fn build(self) -> Qbit {
+        self.client(reqwest::Client::new()).build()
     }
 }
 
@@ -111,7 +122,17 @@ fn test_builder() {
         .build();
 
     QbitBuilder::new()
+        .endpoint("http://localhost:8080")
+        .credential(Credential::new("admin", "adminadmin"))
+        .build();
+
+    QbitBuilder::new()
         .client(reqwest::Client::new())
+        .endpoint("http://localhost:8080")
+        .cookie("SID=1234567890")
+        .build();
+
+    QbitBuilder::new()
         .endpoint("http://localhost:8080")
         .cookie("SID=1234567890")
         .build();
