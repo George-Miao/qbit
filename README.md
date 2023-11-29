@@ -9,14 +9,20 @@ Implemented according to [WebUI API (qBittorrent 4.1)](https://github.com/qbitto
 
 ## Usage
 
-Add this to your `Cargo.toml`:
+Add dependency by running:
+
+```bash
+cargo add qbit-rs
+```
+
+or manually add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-qbit-rs = "0.3"
+qbit-rs = "0.4"
 ```
 
-And this to your crate:
+Then use it in your code:
 
 ```rust,ignore
 use qbit_rs::Qbit;
@@ -24,6 +30,18 @@ use qbit_rs::model::Credential;
 
 let credential = Credential::new("username", "password");
 let api = Qbit::new("http://my-qb-instance.domain", credential);
+let torrents = api.get_version().await;
+```
+
+or use the builder pattern:
+
+```rust,ignore
+use qbit_rs::Qbit;
+
+let api = Qbit::builder()
+    .endpoint("http://my-qb-instance.domain")
+    .cookie("SID=1234567890")
+    .build();
 let torrents = api.get_version().await;
 ```
 
