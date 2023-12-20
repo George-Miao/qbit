@@ -9,7 +9,7 @@ pub struct SyncData {
     /// Response ID
     pub rid: i64,
     /// Whether the response contains all the data or partial data
-    pub full_update: bool,
+    pub full_update: Option<bool>,
     /// Property: torrent hash, value: same as [torrent list](#get-torrent-list)
     pub torrents: Option<HashMap<String, Torrent>>,
     /// List of hashes of torrents removed since last request
