@@ -35,7 +35,7 @@ pub struct SyncData {
 pub struct PeerSyncData {
     pub full_update: Option<bool>,
     pub peers: HashMap<SocketAddr, Peer>,
-    pub peers_removed: Vec<SocketAddr>,
+    pub peers_removed: Option<Vec<SocketAddr>>,
     pub rid: i64,
     pub show_flags: bool,
 }
