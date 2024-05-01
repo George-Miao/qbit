@@ -106,11 +106,11 @@ pub enum IntOrStr {
     Str(String),
 }
 
-impl ToString for IntOrStr {
-    fn to_string(&self) -> String {
+impl Display for IntOrStr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            IntOrStr::Int(i) => i.to_string(),
-            IntOrStr::Str(s) => s.clone(),
+            IntOrStr::Int(i) => write!(f, "{i}"),
+            IntOrStr::Str(s) => write!(f, "{s}"),
         }
     }
 }
