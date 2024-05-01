@@ -17,14 +17,13 @@ features     = ["docs"]
 rustdoc-args = ["--cfg", "feature=\"docs\""]
 
 [features]
-default = ["builder", "native-tls"]
+default    = ["builder", "native-tls"]
 rustls-tls = ["reqwest/rustls-tls"]
 native-tls = ["reqwest/default-tls"]
-docs    = []
+docs       = []
 
 # enables typed-builder on args types
 builder = ["dep:typed-builder"]
-
 
 [dependencies]
 typed-builder = { version = "0.14.0", optional = true }
