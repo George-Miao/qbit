@@ -3,3 +3,4 @@
 
 *.env
 output.json
+/.direnv
