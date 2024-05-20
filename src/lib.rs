@@ -1167,6 +1167,163 @@ impl Qbit {
         .end()
     }
 
+    pub async fn add_folder<T: AsRef<str> + Send + Sync>(&self, path: T) -> Result<()> {
+        #[derive(Serialize)]
+        struct Arg<'a> {
+            path: &'a str,
+        }
+
+        self.post(
+            "rss/addFolder",
+            Some(&Arg {
+                path: path.as_ref(),
+            }),
+        )
+        .await?
+        .end()
+    }
+
+    pub async fn add_feed<T: AsRef<str> + Send + Sync>(
+        &self,
+        url: T,
+        path: Option<T>,
+    ) -> Result<()> {
+        #[derive(Serialize)]
+        struct Arg<'a> {
+            url: &'a str,
+            path: Option<&'a str>,
+        }
+
+        self.post(
+            "rss/addFeed",
+            Some(&Arg {
+                url: url.as_ref(),
+                path: path.as_ref().map(AsRef::as_ref),
+            }),
+        )
+        .await?
+        .end()
+    }
+
+    pub async fn remove_item<T: AsRef<str> + Send + Sync>(&self, path: T) -> Result<()> {
+        #[derive(Serialize)]
+        struct Arg<'a> {
+            path: &'a str,
+        }
+
+        self.post(
+            "rss/removeItem",
+            Some(&Arg {
+                path: path.as_ref(),
+            }),
+        )
+        .await?
+        .end()
+    }
+
+    pub async fn move_item<T: AsRef<str> + Send + Sync>(
+        &self,
+        item_path: T,
+        dest_path: T,
+    ) -> Result<()> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Arg<'a> {
+            item_path: &'a str,
+            dest_path: &'a str,
+        }
+
+        self.post(
+            "rss/moveItem",
+            Some(&Arg {
+                item_path: item_path.as_ref(),
+                dest_path: dest_path.as_ref(),
+            }),
+        )
+        .await?
+        .end()
+    }
+
+    pub async fn mark_as_read<T: AsRef<str> + Send + Sync>(
+        &self,
+        item_path: T,
+        article_id: Option<T>,
+    ) -> Result<()> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Arg<'a> {
+            item_path: &'a str,
+            article_id: Option<&'a str>,
+        }
+
+        self.post(
+            "rss/markAsRead",
+            Some(&Arg {
+                item_path: item_path.as_ref(),
+                article_id: article_id.as_ref().map(AsRef::as_ref),
+            }),
+        )
+        .await?
+        .end()
+    }
+
+    pub async fn refresh_item<T: AsRef<str> + Send + Sync>(&self, item_path: T) -> Result<()> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Arg<'a> {
+            item_path: &'a str,
+        }
+
+        self.post(
+            "rss/refreshItem",
+            Some(&Arg {
+                item_path: item_path.as_ref(),
+            }),
+        )
+        .await?
+        .end()
+    }
+
+    pub async fn rename_rule<T: AsRef<str> + Send + Sync>(
+        &self,
+        rule_name: T,
+        new_rule_name: T,
+    ) -> Result<()> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Arg<'a> {
+            rule_name: &'a str,
+            new_rule_name: &'a str,
+        }
+
+        self.post(
+            "rss/renameRule",
+            Some(&Arg {
+                rule_name: rule_name.as_ref(),
+                new_rule_name: new_rule_name.as_ref(),
+            }),
+        )
+        .await?
+        .end()
+    }
+
+    pub async fn remove_rule<T: AsRef<str> + Send + Sync>(&self, rule_name: T) -> Result<()> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Arg<'a> {
+            rule_name: &'a str,
+        }
+
+        self.post(
+            "rss/removeRule",
+            Some(&Arg {
+                rule_name: rule_name.as_ref(),
+            }),
+        )
+        .await?
+        .end()
+    }
+
     fn url(&self, path: &'static str) -> Url {
         self.endpoint
             .join("api/v2/")
