@@ -126,16 +126,16 @@ Most of the API is covered, except `RSS` and `Search`. PR is welcomed if you nee
    1. [x] [Rename file](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.rename_file)
    1. [x] [Rename folder](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.rename_folder)
 1. [ ] RSS (experimental)
-   1. [ ] Add folder
-   1. [ ] Add feed
-   1. [ ] Remove item
-   1. [ ] Move item
+   1. [x] [Add folder](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.add_folder)
+   1. [x] [Add feed](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.add_feed)
+   1. [x] [Remove item](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.remove_item)
+   1. [x] [Move item](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.move_item)
    1. [ ] Get all items
-   1. [ ] Mark as read
-   1. [ ] Refresh item
+   1. [x] [Mark as read](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.mark_as_read)
+   1. [x] [Refresh item](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.refresh_item)
    1. [ ] Set auto-downloading rule
-   1. [ ] Rename auto-downloading rule
-   1. [ ] Remove auto-downloading rule
+   1. [x] [Rename auto-downloading rule](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.rename_rule)
+   1. [x] [Remove auto-downloading rule](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.remove_rule)
    1. [ ] Get all auto-downloading rules
    1. [ ] Get all articles matching a rule
 1. [ ] Search
