@@ -391,7 +391,7 @@ pub enum TorrentSource {
     /// URLs
     Urls { urls: Sep<Url, '\n'> },
     /// Raw data of torrent file.
-    TorrentFiles { torrents: Vec<u8> },
+    TorrentFiles { torrents: Vec<(String, Vec<u8>)> },
 }
 
 impl Default for TorrentSource {
@@ -401,7 +401,9 @@ impl Default for TorrentSource {
         }
     }
 }
-
+fn is_torrent_files(source: &TorrentSource) -> bool {
+    matches!(source, TorrentSource::TorrentFiles { .. })
+}
 #[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
 #[cfg_attr(
     feature = "builder",
@@ -412,47 +414,75 @@ impl Default for TorrentSource {
 pub struct AddTorrentArg {
     #[serde(flatten)]
     #[cfg_attr(feature = "builder", builder(!default, setter(!strip_option)))]
+    #[serde(skip_serializing_if = "is_torrent_files")]
     pub source: TorrentSource,
+    #[serde(skip_serializing_if = "Option::is_none")]
     /// Download folder
     pub savepath: Option<String>,
     /// Cookie sent to download the .torrent file
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cookie: Option<String>,
     /// Category for the torrent
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
+
     /// Tags for the torrent, split by ','
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub tags: Option<String>,
+
     /// Skip hash checking. Possible values are `true`, `false` (default)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub skip_checking: Option<String>,
+
     /// Add torrents in the paused state. Possible values are `true`, `false`
     /// (default)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub paused: Option<String>,
+
     /// Create the root folder. Possible values are `true`, `false`, unset
     /// (default)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub root_folder: Option<String>,
+
     /// Rename torrent
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub rename: Option<String>,
+
     /// Set torrent upload speed limit. Unit in bytes/second
     #[serde(rename = "upLimit")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub up_limit: Option<i64>,
+
     /// Set torrent download speed limit. Unit in bytes/second
     #[serde(rename = "dlLimit")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub download_limit: Option<i64>,
+
     /// Set torrent share ratio limit
     #[serde(rename = "ratioLimit")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ratio_limit: Option<f64>,
+
     /// Set torrent seeding time limit. Unit in minutes
     #[serde(rename = "seedingTimeLimit")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub seeding_time_limit: Option<i64>,
+
     /// Whether Automatic Torrent Management should be used
     #[serde(rename = "autoTMM")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub auto_torrent_management: Option<bool>,
+
     /// Enable sequential download. Possible values are `true`, `false`
     /// (default)
     #[serde(rename = "sequentialDownload")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sequential_download: Option<String>,
+
     /// Prioritize download first last piece. Possible values are `true`,
     /// `false` (default)
     #[serde(rename = "firstLastPiecePrio")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub first_last_piece_priority: Option<String>,
 }
 

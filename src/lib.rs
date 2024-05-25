@@ -490,7 +490,78 @@ impl Qbit {
     }
 
     pub async fn add_torrent(&self, arg: impl Borrow<AddTorrentArg> + Send + Sync) -> Result<()> {
-        self.post("torrents/add", Some(arg.borrow())).await?.end()
+        let a: &AddTorrentArg = arg.borrow();
+        match &a.source {
+            TorrentSource::Urls { urls: _ } => {
+                self.post("torrents/add", Some(arg.borrow())).await?.end()
+            }
+            TorrentSource::TorrentFiles { torrents } => {
+                {
+                    for i in 0..3 {
+                        // If it's not the first attempt, we need to re-login
+                        self.login(i != 0).await?;
+                        let mut form = reqwest::multipart::Form::new();
+                        // Serialize `a` to a HashMap and add it to the form
+                        let a_map: HashMap<String, String> = {
+                            serde_json::to_value(a)
+                                .expect("Failed to serialize AddTorrentArg")
+                                .as_object()
+                                .expect("AddTorrentArg is not an object")
+                                .iter()
+                                .map(|(k, v)| {
+                                    (
+                                        k.clone(),
+                                        v.as_str().expect("Value is not a string").to_string(),
+                                    )
+                                })
+                                .collect()
+                        };
+                        for (key, value) in a_map {
+                            form = form.text(key, value);
+                        }
+                        // Add torrent files to the form
+                        for torrent in torrents {
+                            let p = reqwest::multipart::Part::bytes(torrent.1.clone())
+                                .file_name(torrent.0.clone())
+                                .mime_str("application/x-bittorrent")?;
+                            form = form.part("torrents", p);
+                        }
+                        let req = self
+                            .client
+                            .request(Method::POST, self.url("torrents/add"))
+                            .multipart(form)
+                            .header(header::COOKIE, {
+                                self.state()
+                                    .as_cookie()
+                                    .expect("Cookie should be set after login")
+                            });
+
+                        trace!(request = ?req, "Sending request");
+                        let res = req
+                            .send()
+                            .await?
+                            .map_status(|code| match code as _ {
+                                StatusCode::FORBIDDEN => {
+                                    Some(Error::ApiError(ApiError::NotLoggedIn))
+                                }
+                                _ => None,
+                            })
+                            .tap_ok(|response| trace!(?response));
+
+                        match res {
+                            Err(Error::ApiError(ApiError::NotLoggedIn)) => {
+                                // Retry
+                                warn!("Cookie is not valid, retrying");
+                            }
+                            Err(e) => return Err(e),
+                            Ok(t) => return t.end(),
+                        }
+                    }
+
+                    Err(Error::ApiError(ApiError::NotLoggedIn))
+                }
+            }
+        }
     }
 
     pub async fn add_trackers(
