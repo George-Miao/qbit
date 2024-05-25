@@ -1647,10 +1647,27 @@ mod test {
         let arg = AddTorrentArg {
             source: TorrentSource::Urls {
                 urls: vec![
-                    "https://releases.ubuntu.com/20.04/ubuntu-20.04.1-desktop-amd64.iso.torrent"
+                    "https://releases.ubuntu.com/22.04/ubuntu-22.04.4-desktop-amd64.iso.torrent"
                         .parse()
                         .unwrap(),
                 ]
+                .into(),
+            },
+            ..AddTorrentArg::default()
+        };
+        client.add_torrent(arg).await.unwrap();
+    }
+    #[tokio::test]
+    async fn test_add_torrent_file() {
+        let client = prepare().await.unwrap();
+        let arg = AddTorrentArg {
+            source: TorrentSource::TorrentFiles {
+                torrents: vec![(
+                    "ubuntu-22.04.4-desktop-amd64.iso.torrent".to_string(),
+                    reqwest::get(
+                        "https://releases.ubuntu.com/22.04/ubuntu-22.04.4-desktop-amd64.iso.torrent",
+                    ).await.unwrap().bytes().await.unwrap().to_vec(),
+                )]
                 .into(),
             },
             ..AddTorrentArg::default()
