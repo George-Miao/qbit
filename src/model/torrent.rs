@@ -390,10 +390,15 @@ pub struct GetTorrentListArg {
 pub enum TorrentSource {
     /// URLs
     Urls { urls: Sep<Url, '\n'> },
-    /// Raw data of torrent file.
-    TorrentFiles { torrents: Vec<(String, Vec<u8>)> },
+    /// Torrent files
+    TorrentFiles { torrents: Vec<TorrentFile> },
 }
-
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// Torrent file
+pub struct TorrentFile {
+    pub filename: String,
+    pub data: Vec<u8>
+}
 impl Default for TorrentSource {
     fn default() -> Self {
         TorrentSource::Urls {

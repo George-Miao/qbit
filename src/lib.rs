@@ -521,8 +521,8 @@ impl Qbit {
                         }
                         // Add torrent files to the form
                         for torrent in torrents {
-                            let p = reqwest::multipart::Part::bytes(torrent.1.clone())
-                                .file_name(torrent.0.clone())
+                            let p = reqwest::multipart::Part::bytes(torrent.data.clone())
+                                .file_name(torrent.filename.clone())
                                 .mime_str("application/x-bittorrent")?;
                             form = form.part("torrents", p);
                         }
@@ -541,9 +541,7 @@ impl Qbit {
                             .send()
                             .await?
                             .map_status(|code| match code as _ {
-                                StatusCode::FORBIDDEN => {
-                                    Some(Error::ApiError(ApiError::NotLoggedIn))
-                                }
+                            StatusCode::FORBIDDEN => Some(Error::ApiError(ApiError::NotLoggedIn)),
                                 _ => None,
                             })
                             .tap_ok(|response| trace!(?response));
@@ -559,7 +557,6 @@ impl Qbit {
                     }
 
                     Err(Error::ApiError(ApiError::NotLoggedIn))
-                }
             }
         }
     }
@@ -1653,6 +1650,7 @@ mod test {
                 ]
                 .into(),
             },
+            ratio_limit: Some(1.0),
             ..AddTorrentArg::default()
         };
         client.add_torrent(arg).await.unwrap();
@@ -1662,14 +1660,19 @@ mod test {
         let client = prepare().await.unwrap();
         let arg = AddTorrentArg {
             source: TorrentSource::TorrentFiles {
-                torrents: vec![(
-                    "ubuntu-22.04.4-desktop-amd64.iso.torrent".to_string(),
-                    reqwest::get(
-                        "https://releases.ubuntu.com/22.04/ubuntu-22.04.4-desktop-amd64.iso.torrent",
-                    ).await.unwrap().bytes().await.unwrap().to_vec(),
-                )]
+                torrents: vec![ TorrentFile {
+                    filename: "ubuntu-22.04.4-desktop-amd64.iso.torrent".into(),
+                    data: reqwest::get("https://releases.ubuntu.com/22.04/ubuntu-22.04.4-desktop-amd64.iso.torrent")
+                        .await
+                        .unwrap()
+                        .bytes()
+                        .await
+                        .unwrap()
+                        .to_vec(),
+                }]
                 .into(),
             },
+            ratio_limit: Some(1.0),
             ..AddTorrentArg::default()
         };
         client.add_torrent(arg).await.unwrap();
