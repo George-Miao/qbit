@@ -496,67 +496,58 @@ impl Qbit {
                 self.post("torrents/add", Some(arg.borrow())).await?.end()
             }
             TorrentSource::TorrentFiles { torrents } => {
-                {
-                    for i in 0..3 {
-                        // If it's not the first attempt, we need to re-login
-                        self.login(i != 0).await?;
-                        let mut form = reqwest::multipart::Form::new();
-                        // Serialize `a` to a HashMap and add it to the form
-                        let a_map: HashMap<String, String> = {
-                            serde_json::to_value(a)
-                                .expect("Failed to serialize AddTorrentArg")
-                                .as_object()
-                                .expect("AddTorrentArg is not an object")
-                                .iter()
-                                .map(|(k, v)| {
-                                    (
-                                        k.clone(),
-                                        v.as_str().expect("Value is not a string").to_string(),
-                                    )
-                                })
-                                .collect()
-                        };
-                        for (key, value) in a_map {
-                            form = form.text(key, value);
-                        }
-                        // Add torrent files to the form
-                        for torrent in torrents {
+                for i in 0..3 {
+                    // If it's not the first attempt, we need to re-login
+                    self.login(i != 0).await?;
+                    // Create a multipart form containing the torrent files and other arguments
+                    let form = torrents.iter().fold(
+                        serde_json::to_value(a)?
+                            .as_object()
+                            .unwrap()
+                            .into_iter()
+                            .fold(reqwest::multipart::Form::new(), |form, (k, v)| {
+                                form.text(k.to_string(), v.to_string())
+                            }),
+                        |mut form, torrent| {
                             let p = reqwest::multipart::Part::bytes(torrent.data.clone())
-                                .file_name(torrent.filename.clone())
-                                .mime_str("application/x-bittorrent")?;
+                                .file_name(torrent.filename.to_string())
+                                .mime_str("application/x-bittorrent")
+                                .unwrap();
                             form = form.part("torrents", p);
-                        }
-                        let req = self
-                            .client
-                            .request(Method::POST, self.url("torrents/add"))
-                            .multipart(form)
-                            .header(header::COOKIE, {
-                                self.state()
-                                    .as_cookie()
-                                    .expect("Cookie should be set after login")
-                            });
+                            form
+                        },
+                    );
+                    let req = self
+                        .client
+                        .request(Method::POST, self.url("torrents/add"))
+                        .multipart(form)
+                        .header(header::COOKIE, {
+                            self.state()
+                                .as_cookie()
+                                .expect("Cookie should be set after login")
+                        });
 
-                        trace!(request = ?req, "Sending request");
-                        let res = req
-                            .send()
-                            .await?
-                            .map_status(|code| match code as _ {
+                    trace!(request = ?req, "Sending request");
+                    let res = req
+                        .send()
+                        .await?
+                        .map_status(|code| match code as _ {
                             StatusCode::FORBIDDEN => Some(Error::ApiError(ApiError::NotLoggedIn)),
-                                _ => None,
-                            })
-                            .tap_ok(|response| trace!(?response));
+                            _ => None,
+                        })
+                        .tap_ok(|response| trace!(?response));
 
-                        match res {
-                            Err(Error::ApiError(ApiError::NotLoggedIn)) => {
-                                // Retry
-                                warn!("Cookie is not valid, retrying");
-                            }
-                            Err(e) => return Err(e),
-                            Ok(t) => return t.end(),
+                    match res {
+                        Err(Error::ApiError(ApiError::NotLoggedIn)) => {
+                            // Retry
+                            warn!("Cookie is not valid, retrying");
                         }
+                        Err(e) => return Err(e),
+                        Ok(t) => return t.end(),
                     }
+                }
 
-                    Err(Error::ApiError(ApiError::NotLoggedIn))
+                Err(Error::ApiError(ApiError::NotLoggedIn))
             }
         }
     }
