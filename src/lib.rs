@@ -1661,7 +1661,6 @@ mod test {
                         .unwrap()
                         .to_vec(),
                 }]
-                .into(),
             },
             ratio_limit: Some(1.0),
             ..AddTorrentArg::default()
