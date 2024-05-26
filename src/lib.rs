@@ -490,7 +490,66 @@ impl Qbit {
     }
 
     pub async fn add_torrent(&self, arg: impl Borrow<AddTorrentArg> + Send + Sync) -> Result<()> {
-        self.post("torrents/add", Some(arg.borrow())).await?.end()
+        let a: &AddTorrentArg = arg.borrow();
+        match &a.source {
+            TorrentSource::Urls { urls: _ } => {
+                self.post("torrents/add", Some(arg.borrow())).await?.end()
+            }
+            TorrentSource::TorrentFiles { torrents } => {
+                for i in 0..3 {
+                    // If it's not the first attempt, we need to re-login
+                    self.login(i != 0).await?;
+                    // Create a multipart form containing the torrent files and other arguments
+                    let form = torrents.iter().fold(
+                        serde_json::to_value(a)?
+                            .as_object()
+                            .unwrap()
+                            .into_iter()
+                            .fold(reqwest::multipart::Form::new(), |form, (k, v)| {
+                                form.text(k.to_string(), v.to_string())
+                            }),
+                        |mut form, torrent| {
+                            let p = reqwest::multipart::Part::bytes(torrent.data.clone())
+                                .file_name(torrent.filename.to_string())
+                                .mime_str("application/x-bittorrent")
+                                .unwrap();
+                            form = form.part("torrents", p);
+                            form
+                        },
+                    );
+                    let req = self
+                        .client
+                        .request(Method::POST, self.url("torrents/add"))
+                        .multipart(form)
+                        .header(header::COOKIE, {
+                            self.state()
+                                .as_cookie()
+                                .expect("Cookie should be set after login")
+                        });
+
+                    trace!(request = ?req, "Sending request");
+                    let res = req
+                        .send()
+                        .await?
+                        .map_status(|code| match code as _ {
+                            StatusCode::FORBIDDEN => Some(Error::ApiError(ApiError::NotLoggedIn)),
+                            _ => None,
+                        })
+                        .tap_ok(|response| trace!(?response));
+
+                    match res {
+                        Err(Error::ApiError(ApiError::NotLoggedIn)) => {
+                            // Retry
+                            warn!("Cookie is not valid, retrying");
+                        }
+                        Err(e) => return Err(e),
+                        Ok(t) => return t.end(),
+                    }
+                }
+
+                Err(Error::ApiError(ApiError::NotLoggedIn))
+            }
+        }
     }
 
     pub async fn add_trackers(
@@ -1576,12 +1635,35 @@ mod test {
         let arg = AddTorrentArg {
             source: TorrentSource::Urls {
                 urls: vec![
-                    "https://releases.ubuntu.com/20.04/ubuntu-20.04.1-desktop-amd64.iso.torrent"
+                    "https://releases.ubuntu.com/22.04/ubuntu-22.04.4-desktop-amd64.iso.torrent"
                         .parse()
                         .unwrap(),
                 ]
                 .into(),
             },
+            ratio_limit: Some(1.0),
+            ..AddTorrentArg::default()
+        };
+        client.add_torrent(arg).await.unwrap();
+    }
+    #[tokio::test]
+    async fn test_add_torrent_file() {
+        let client = prepare().await.unwrap();
+        let arg = AddTorrentArg {
+            source: TorrentSource::TorrentFiles {
+                torrents: vec![ TorrentFile {
+                    filename: "ubuntu-22.04.4-desktop-amd64.iso.torrent".into(),
+                    data: reqwest::get("https://releases.ubuntu.com/22.04/ubuntu-22.04.4-desktop-amd64.iso.torrent")
+                        .await
+                        .unwrap()
+                        .bytes()
+                        .await
+                        .unwrap()
+                        .to_vec(),
+                }]
+                .into(),
+            },
+            ratio_limit: Some(1.0),
             ..AddTorrentArg::default()
         };
         client.add_torrent(arg).await.unwrap();
