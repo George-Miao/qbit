@@ -13,6 +13,7 @@ use std::{
 
 pub mod model;
 pub use builder::QbitBuilder;
+use bytes::Bytes;
 use reqwest::{header, Client, Method, Response, StatusCode};
 use serde::Serialize;
 use serde_with::skip_serializing_none;
@@ -352,6 +353,14 @@ impl Qbit {
         self.get_with("torrents/info", &arg)
             .await?
             .json()
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn export_torrent(&self, hash: impl AsRef<str> + Send + Sync) -> Result<Bytes> {
+        self.get_with("torrents/export", &HashArg::new(hash.as_ref()))
+            .await?
+            .bytes()
             .await
             .map_err(Into::into)
     }
@@ -1677,4 +1686,5 @@ mod test {
             .unwrap();
         print!("{:#?}", list);
     }
+
 }
