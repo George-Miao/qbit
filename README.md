@@ -149,3 +149,7 @@ Most of the API is covered, except `RSS` and `Search`. PR is welcomed if you nee
    1. [ ] Uninstall search plugin
    1. [ ] Enable search plugin
    1. [ ] Update search plugins
+1. Undocumented
+   1. [x] [Export torrent](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.export_torrent)[^1]
+
+[^1]: The endpoint is added in [this PR](https://github.com/qbittorrent/qBittorrent/pull/16968)
