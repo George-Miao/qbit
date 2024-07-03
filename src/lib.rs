@@ -1,6 +1,5 @@
 #![doc = include_str!("../README.md")]
 #![warn(clippy::future_not_send)]
-#![cfg_attr(test, feature(lazy_cell))]
 #![cfg_attr(feature = "docs", feature(doc_cfg))]
 
 use std::{
