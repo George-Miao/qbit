@@ -25,6 +25,7 @@ use crate::{ext::*, model::*};
 mod builder;
 mod ext;
 
+#[derive(Clone)]
 enum LoginState {
     CookieProvided {
         cookie: String,
@@ -75,6 +76,7 @@ pub struct Qbit {
     endpoint: Url,
     state: Mutex<LoginState>,
 }
+
 
 impl Qbit {
     /// Create a new [`QbitBuilder`] to build a [`Qbit`] instance.
@@ -1502,6 +1504,13 @@ impl Qbit {
         body: Option<&(impl Serialize + Sync)>,
     ) -> Result<Response> {
         self.request(Method::POST, path, body).await
+    }
+}
+
+impl Clone for Qbit {
+    fn clone(&self) -> Self {
+        let state = self.state.lock().unwrap().clone();
+        Self { client: self.client.clone(), endpoint: self.endpoint.clone(), state: Mutex::new(state)  }
     }
 }
 
