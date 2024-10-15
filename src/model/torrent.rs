@@ -134,8 +134,9 @@ pub enum State {
     /// Torrent is being seeded and data is being transferred
     #[serde(rename = "uploading")]
     Uploading,
-    /// Torrent is paused and has finished downloading
-    #[serde(rename = "pausedUP")]
+    /// Torrent is paused and has finished downloading, 
+    /// stoppedUP is new name in qBit5+
+    #[serde(rename = "pausedUP", alias = "stoppedUP")]
     PausedUP,
     /// Queuing is enabled and torrent is queued for upload
     #[serde(rename = "queuedUP")]
@@ -158,8 +159,9 @@ pub enum State {
     /// Torrent has just started downloading and is fetching metadata
     #[serde(rename = "metaDL")]
     MetaDL,
-    /// Torrent is paused and has NOT finished downloading
-    #[serde(rename = "pausedDL")]
+    /// Torrent is paused and has NOT finished downloading,
+    /// stoppedDL is new name in qBit5+
+    #[serde(rename = "pausedDL", alias = "stoppedDL")]
     PausedDL,
     /// Queuing is enabled and torrent is queued for download
     #[serde(rename = "queuedDL")]
