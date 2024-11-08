@@ -283,7 +283,7 @@ impl Qbit {
     }
 
     pub async fn toggle_speed_limits_mode(&self) -> Result<()> {
-        self.get("transfer/toggleSpeedLimitsMode").await?.end()
+        self.post("transfer/toggleSpeedLimitsMode", None::<&()>).await?.end()
     }
 
     pub async fn get_download_limit(&self) -> Result<u64> {
