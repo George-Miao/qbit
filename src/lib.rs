@@ -516,7 +516,12 @@ impl Qbit {
                             .unwrap()
                             .into_iter()
                             .fold(reqwest::multipart::Form::new(), |form, (k, v)| {
-                                form.text(k.to_string(), v.to_string())
+                                form.text(k.to_string(),
+                                    if let serde_json::Value::String(s) = v {
+                                        s
+                                    } else {
+                                        v.to_string()
+                                    })
                             }),
                         |mut form, torrent| {
                             let p = reqwest::multipart::Part::bytes(torrent.data.clone())
