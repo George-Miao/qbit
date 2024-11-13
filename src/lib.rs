@@ -77,7 +77,6 @@ pub struct Qbit {
     state: Mutex<LoginState>,
 }
 
-
 impl Qbit {
     /// Create a new [`QbitBuilder`] to build a [`Qbit`] instance.
     pub fn builder() -> QbitBuilder {
@@ -516,12 +515,14 @@ impl Qbit {
                             .unwrap()
                             .into_iter()
                             .fold(reqwest::multipart::Form::new(), |form, (k, v)| {
-                                form.text(k.to_string(),
+                                form.text(
+                                    k.to_string(),
                                     if let serde_json::Value::String(s) = v {
-                                        s
+                                        s.to_owned()
                                     } else {
                                         v.to_string()
-                                    })
+                                    },
+                                )
                             }),
                         |mut form, torrent| {
                             let p = reqwest::multipart::Part::bytes(torrent.data.clone())
@@ -1515,7 +1516,11 @@ impl Qbit {
 impl Clone for Qbit {
     fn clone(&self) -> Self {
         let state = self.state.lock().unwrap().clone();
-        Self { client: self.client.clone(), endpoint: self.endpoint.clone(), state: Mutex::new(state)  }
+        Self {
+            client: self.client.clone(),
+            endpoint: self.endpoint.clone(),
+            state: Mutex::new(state),
+        }
     }
 }
 
@@ -1699,5 +1704,4 @@ mod test {
             .unwrap();
         print!("{:#?}", list);
     }
-
 }
