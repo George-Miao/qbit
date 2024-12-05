@@ -503,6 +503,8 @@ pub struct SetTorrentSharedLimitArg {
     pub ratio_limit: Option<RatioLimit>,
     #[cfg_attr(feature = "builder", builder(default, setter(strip_option)))]
     pub seeding_time_limit: Option<SeedingTimeLimit>,
+    #[cfg_attr(feature = "builder", builder(default, setter(strip_option)))]
+    pub inactive_seeding_time_limit: Option<SeedingTimeLimit>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
