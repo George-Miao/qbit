@@ -77,7 +77,6 @@ pub struct Qbit {
     state: Mutex<LoginState>,
 }
 
-
 impl Qbit {
     /// Create a new [`QbitBuilder`] to build a [`Qbit`] instance.
     pub fn builder() -> QbitBuilder {
@@ -516,6 +515,13 @@ impl Qbit {
                             .unwrap()
                             .into_iter()
                             .fold(reqwest::multipart::Form::new(), |form, (k, v)| {
+                                // If we directly call to_string() on a Value containing a string like "hello",
+                                // it will include the quotes: "\"hello\"".
+                                // We need to use as_str() first to get the inner string without quotes.
+                                let v = match v.as_str() {
+                                    Some(v_str) => v_str.to_string(),
+                                    None => v.to_string(),
+                                };
                                 form.text(k.to_string(), v.to_string())
                             }),
                         |mut form, torrent| {
@@ -1510,7 +1516,11 @@ impl Qbit {
 impl Clone for Qbit {
     fn clone(&self) -> Self {
         let state = self.state.lock().unwrap().clone();
-        Self { client: self.client.clone(), endpoint: self.endpoint.clone(), state: Mutex::new(state)  }
+        Self {
+            client: self.client.clone(),
+            endpoint: self.endpoint.clone(),
+            state: Mutex::new(state),
+        }
     }
 }
 
@@ -1694,5 +1704,4 @@ mod test {
             .unwrap();
         print!("{:#?}", list);
     }
-
 }
