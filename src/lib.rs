@@ -13,7 +13,7 @@ use std::{
 pub mod model;
 pub use builder::QbitBuilder;
 use bytes::Bytes;
-use reqwest::{header, Client, Method, Response, StatusCode};
+use reqwest::{Client, Method, Response, StatusCode, header};
 use serde::Serialize;
 use serde_with::skip_serializing_none;
 use tap::{Pipe, TapFallible};
@@ -75,6 +75,7 @@ pub struct Qbit {
     client: Client,
     endpoint: Url,
     state: Mutex<LoginState>,
+    basic_auth_credentials: Option<Credential>,
 }
 
 impl Qbit {
@@ -207,12 +208,9 @@ impl Qbit {
             last_known_id: Option<i64>,
         }
 
-        self.get_with(
-            "log/peers",
-            &Arg {
-                last_known_id: last_known_id.into(),
-            },
-        )
+        self.get_with("log/peers", &Arg {
+            last_known_id: last_known_id.into(),
+        })
         .await?
         .json()
         .await
@@ -244,13 +242,10 @@ impl Qbit {
             rid: Option<i64>,
         }
 
-        self.get_with(
-            "sync/torrentPeers",
-            &Arg {
-                hash: hash.as_ref(),
-                rid: rid.into(),
-            },
-        )
+        self.get_with("sync/torrentPeers", &Arg {
+            hash: hash.as_ref(),
+            rid: rid.into(),
+        })
         .await
         .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
         .json()
@@ -282,7 +277,9 @@ impl Qbit {
     }
 
     pub async fn toggle_speed_limits_mode(&self) -> Result<()> {
-        self.post("transfer/toggleSpeedLimitsMode", None::<&()>).await?.end()
+        self.post("transfer/toggleSpeedLimitsMode", None::<&()>)
+            .await?
+            .end()
     }
 
     pub async fn get_download_limit(&self) -> Result<u64> {
@@ -413,13 +410,10 @@ impl Qbit {
             indexes: Option<String>,
         }
 
-        self.get_with(
-            "torrents/files",
-            &Arg {
-                hash: hash.as_ref(),
-                indexes: indexes.into().map(|s| s.to_string()),
-            },
-        )
+        self.get_with("torrents/files", &Arg {
+            hash: hash.as_ref(),
+            indexes: indexes.into().map(|s| s.to_string()),
+        })
         .await
         .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
         .json()
@@ -536,6 +530,7 @@ impl Qbit {
                     let req = self
                         .client
                         .request(Method::POST, self.url("torrents/add"))
+                        .pipe(|req| self.add_basic_auth(req))
                         .multipart(form)
                         .header(header::COOKIE, {
                             self.state()
@@ -1419,6 +1414,7 @@ impl Qbit {
             debug!("Cookie not found, logging in");
             self.client
                 .request(Method::POST, self.url("auth/login"))
+                .pipe(|req| self.add_basic_auth(req))
                 .pipe(|req| {
                     req.form(
                         self.state()
@@ -1443,6 +1439,28 @@ impl Qbit {
         Ok(())
     }
 
+    fn add_basic_auth(&self, req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        if self.basic_auth_credentials.is_some() {
+            trace!("Adding basic auth credentials");
+            req.basic_auth(
+                self.basic_auth_credentials
+                    .as_ref()
+                    .unwrap()
+                    .username
+                    .clone(),
+                Some(
+                    self.basic_auth_credentials
+                        .as_ref()
+                        .unwrap()
+                        .password
+                        .clone(),
+                ),
+            )
+        } else {
+            req
+        }
+    }
+
     async fn request(
         &self,
         method: Method,
@@ -1453,14 +1471,14 @@ impl Qbit {
             // If it's not the first attempt, we need to re-login
             self.login(i != 0).await?;
 
-            let mut req =
-                self.client
-                    .request(method.clone(), self.url(path))
-                    .header(header::COOKIE, {
-                        self.state()
-                            .as_cookie()
-                            .expect("Cookie should be set after login")
-                    });
+            let mut req: reqwest::RequestBuilder = self
+                .client
+                .request(method.clone(), self.url(path))
+                .header(header::COOKIE, {
+                    self.state()
+                        .as_cookie()
+                        .expect("Cookie should be set after login")
+                });
 
             if let Some(ref body) = body {
                 match method {
@@ -1469,6 +1487,9 @@ impl Qbit {
                     _ => unreachable!("Only GET and POST are supported"),
                 }
             }
+
+            req = self.add_basic_auth(req);
+
             trace!(request = ?req, "Sending request");
             let res = req
                 .send()
@@ -1520,6 +1541,7 @@ impl Clone for Qbit {
             client: self.client.clone(),
             endpoint: self.endpoint.clone(),
             state: Mutex::new(state),
+            basic_auth_credentials: self.basic_auth_credentials.clone(),
         }
     }
 }
