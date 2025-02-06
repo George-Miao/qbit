@@ -600,6 +600,7 @@ impl Qbit {
         new_url: Url,
     ) -> Result<()> {
         #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
         struct EditTrackerArg<'a> {
             hash: &'a str,
             orig_url: Url,
@@ -620,9 +621,7 @@ impl Qbit {
             StatusCode::CONFLICT => Some(Error::ApiError(ApiError::ConflictTrackerUrl)),
             _ => None,
         })?
-        .json()
-        .await
-        .map_err(Into::into)
+        .end()
     }
 
     pub async fn remove_trackers(
