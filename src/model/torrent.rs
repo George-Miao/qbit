@@ -279,7 +279,7 @@ pub struct TorrentContent {
     /// The first number is the starting piece index and the second number is
     /// the ending piece index (inclusive),
     #[serde(default)]
-    pub piece_range: Vec<u64>,
+    pub piece_range: Vec<i64>,
     /// Percentage of file pieces currently available (percentage/100),
     #[serde(default)]
     pub availability: f64,
