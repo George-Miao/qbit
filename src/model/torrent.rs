@@ -35,6 +35,8 @@ pub struct Torrent {
     /// Category of the torrent
     pub category: Option<String>,
     /// Amount of transfer data completed (bytes)
+    pub comment: Option<String>,
+    /// Comment for torrent
     pub completed: Option<i64>,
     /// Time (Unix Epoch) when the torrent completed
     pub completion_on: Option<i64>,
@@ -45,6 +47,8 @@ pub struct Torrent {
     pub dl_limit: Option<i64>,
     /// Torrent download speed (bytes/s)
     pub dlspeed: Option<i64>,
+    /// Torrent download path
+    pub download_path: Option<String>,
     /// Amount of data downloaded
     pub downloaded: Option<i64>,
     /// Amount of data downloaded this session
@@ -55,12 +59,22 @@ pub struct Torrent {
     pub f_l_piece_prio: Option<bool>,
     /// True if force start is enabled for this torrent
     pub force_start: Option<bool>,
+    /// Whether the torrent has metadata
+    pub has_metadata: Option<bool>,
     /// Torrent hash
     pub hash: Option<String>,
+    /// Inactive seeding time limit
+    pub inactive_seeding_time_limit: Option<i64>,
+    /// Torrent infohash v1
+    pub infohash_v1: Option<String>,
+    /// Torrent infohash v2
+    pub infohash_v2: Option<String>,
     /// Last time (Unix Epoch) when a chunk was downloaded/uploaded
     pub last_activity: Option<i64>,
     /// Magnet URI corresponding to this torrent
     pub magnet_uri: Option<String>,
+    /// Maximum inactive seeding time
+    pub max_inactive_seeding_time: Option<i64>,
     /// Maximum share ratio until torrent is stopped from seeding/uploading
     pub max_ratio: Option<f64>,
     /// Maximum seeding time (seconds) until torrent is stopped from seeding
@@ -75,14 +89,22 @@ pub struct Torrent {
     pub num_leechs: Option<i64>,
     /// Number of seeds connected to
     pub num_seeds: Option<i64>,
+    /// Torrent popularity
+    pub popularity: Option<f64>,
     /// Torrent priority. Returns -1 if queuing is disabled or torrent is in
     /// seed mode
     pub priority: Option<i64>,
+    /// Whether this torrent is private
+    pub private: Option<bool>,
     /// Torrent progress (percentage/100)
     pub progress: Option<f64>,
     /// Torrent share ratio. Max ratio value: 9999.
     pub ratio: Option<f64>,
     pub ratio_limit: Option<f64>,
+    /// Torrent reannounce interval
+    pub reannounce: Option<i64>,
+    /// Root folder of the torrent
+    pub root_path: Option<String>,
     /// Path where this torrent's data is stored
     pub save_path: Option<String>,
     /// Torrent elapsed time while complete (seconds)
