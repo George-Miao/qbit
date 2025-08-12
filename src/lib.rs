@@ -451,14 +451,14 @@ impl Qbit {
             .map_err(Into::into)
     }
 
-    pub async fn pause_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        self.post("torrents/pause", Some(&HashesArg::new(hashes)))
+    pub async fn stop_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
+        self.post("torrents/stop", Some(&HashesArg::new(hashes)))
             .await?
             .end()
     }
 
-    pub async fn resume_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        self.post("torrents/resume", Some(&HashesArg::new(hashes)))
+    pub async fn start_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
+        self.post("torrents/start", Some(&HashesArg::new(hashes)))
             .await?
             .end()
     }
