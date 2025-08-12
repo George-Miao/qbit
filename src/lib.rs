@@ -13,7 +13,7 @@ use std::{
 pub mod model;
 pub use builder::QbitBuilder;
 use bytes::Bytes;
-use reqwest::{header, Client, Method, Response, StatusCode};
+use reqwest::{Client, Method, Response, StatusCode, header};
 use serde::Serialize;
 use serde_with::skip_serializing_none;
 use tap::{Pipe, TapFallible};
@@ -282,7 +282,9 @@ impl Qbit {
     }
 
     pub async fn toggle_speed_limits_mode(&self) -> Result<()> {
-        self.post("transfer/toggleSpeedLimitsMode", None::<&()>).await?.end()
+        self.post("transfer/toggleSpeedLimitsMode", None::<&()>)
+            .await?
+            .end()
     }
 
     pub async fn get_download_limit(&self) -> Result<u64> {
