@@ -6,7 +6,7 @@ use reqwest::Client;
 use tap::Pipe;
 use url::Url;
 
-use crate::{ext::Cookie, model::Credential, LoginState, Qbit};
+use crate::{LoginState, Qbit, ext::Cookie, model::Credential};
 
 pub struct QbitBuilder<C = (), R = (), E = ()> {
     credential: C,

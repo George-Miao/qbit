@@ -1,4 +1,4 @@
-use reqwest::{header::SET_COOKIE, Response, StatusCode};
+use reqwest::{Response, StatusCode, header::SET_COOKIE};
 use tap::Pipe;
 
 use crate::{ApiError, Error, Result};
@@ -63,7 +63,7 @@ impl ResponseExt for Response {
 
     fn end<T: FromResponse>(self) -> Result<T> {
         self.map_status(|c| Error::UnknownHttpCode(c).pipe(Some))
-            .and_then(|b| T::from_response(&b).map_err(Into::into))
+            .and_then(|b| T::from_response(&b))
     }
 }
 
