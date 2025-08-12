@@ -41,7 +41,8 @@
               ]
               else []
             );
-        in {
+        in rec {
+          default = nightly;
           stable = mkShell.override {stdenv = stdenvNoLibs;} {
             packages =
               [
@@ -52,7 +53,7 @@
               ]
               ++ packages;
           };
-          default = mkShell.override {stdenv = stdenvNoLibs;} {
+          nightly = mkShell.override {stdenv = stdenvNoLibs;} {
             packages =
               [
                 (
