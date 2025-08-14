@@ -7,6 +7,8 @@
 A Rust library for interacting with qBittorrent's Web API.
 
 Implemented according to [WebUI API (qBittorrent 4.1)](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)).
+Since the official documentation often lags behind releases, this crate also includes support for newer, undocumented features to stay current. The implementation is based on the API behavior of qBittorrent v5.1.2.
+For the most accurate and complete list of supported API methods and model fields, please refer to this [crate's documentation on docs.rs](https://docs.rs/qbit-rs/latest/qbit_rs/).
 
 ## Usage
 
