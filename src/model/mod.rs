@@ -15,8 +15,8 @@ mod_use::mod_use![app, log, sync, torrent, transfer, search];
 /// Username and password used to authenticate with qBittorrent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Credential {
-    username: String,
-    password: String,
+    pub username: String,
+    pub password: String,
 }
 
 impl Credential {
