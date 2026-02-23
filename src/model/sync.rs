@@ -53,7 +53,7 @@ pub struct Peer {
     pub ip: Option<String>,
     pub port: Option<u16>,
     pub progress: Option<f64>,
-    pub relevance: Option<u64>,
+    pub relevance: Option<f64>,
     pub up_speed: Option<u64>,
     pub uploaded: Option<u64>,
 }
