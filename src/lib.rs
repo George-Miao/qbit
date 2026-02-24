@@ -1,6 +1,6 @@
 #![doc = include_str!("../README.md")]
-#![warn(clippy::future_not_send)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(rustdoc::broken_intra_doc_links)]
 
 use std::{
     borrow::Borrow,

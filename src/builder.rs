@@ -30,6 +30,7 @@ impl IntoLoginState for Credential {
 }
 
 impl QbitBuilder {
+    /// Creates a new `QbitBuilder` with default values.
     pub fn new() -> Self {
         QbitBuilder {
             credential: (),
@@ -46,6 +47,12 @@ impl Default for QbitBuilder {
 }
 
 impl<C, R, E> QbitBuilder<C, R, E> {
+    /// Sets the HTTP client for the `Qbit` instance.
+    ///
+    /// - When `reqwest` feature is enabled (by default), this method accepts a
+    /// `reqwest::Client`.
+    /// - When `cyper` feature is enabled, this method accepts a
+    ///   `cyper::Client`.
     pub fn client(self, client: Client) -> QbitBuilder<C, Client, E> {
         QbitBuilder {
             credential: self.credential,
@@ -54,6 +61,11 @@ impl<C, R, E> QbitBuilder<C, R, E> {
         }
     }
 
+    /// Sets the cookie for authentication.
+    ///
+    /// Note that if you have already set the credential, this method will
+    /// overwrite the credential and use the cookie instead. The builder
+    /// will use the latest provided credential for authentication.
     #[allow(private_interfaces)]
     pub fn cookie(self, cookie: impl Into<String>) -> QbitBuilder<Cookie, R, E> {
         QbitBuilder {
@@ -63,6 +75,11 @@ impl<C, R, E> QbitBuilder<C, R, E> {
         }
     }
 
+    /// Sets the username-password credentials for authentication.
+    ///
+    /// Note that if you have already set the cookie, this method will overwrite
+    /// the cookie and use the credential instead. The builder will use the
+    /// latest provided credential for authentication.
     pub fn credential(self, credential: Credential) -> QbitBuilder<Credential, R, E> {
         QbitBuilder {
             credential,
@@ -71,6 +88,7 @@ impl<C, R, E> QbitBuilder<C, R, E> {
         }
     }
 
+    /// Sets the endpoint URL for the qBittorrent Web API.
     pub fn endpoint<U>(self, endpoint: U) -> QbitBuilder<C, R, U>
     where
         U: TryInto<Url>,
@@ -89,6 +107,8 @@ where
     U: TryInto<Url>,
     U::Error: Debug,
 {
+    /// Builds the `Qbit` instance with the provided configuration and HTTP
+    /// Client.
     pub fn build(self) -> Qbit {
         let endpoint = self.endpoint.try_into().expect("Invalid endpoint");
         let state = self.credential.into_login_state().pipe(Mutex::new);
@@ -107,6 +127,8 @@ where
     U: TryInto<Url>,
     U::Error: Debug,
 {
+    /// Builds the `Qbit` instance with the provided configuration and a default
+    /// HTTP Client.
     pub fn build(self) -> Qbit {
         self.client(Client::new()).build()
     }

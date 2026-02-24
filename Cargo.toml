@@ -13,7 +13,7 @@ keywords      = ["qbit", "qBittorrent", "web", "api", "torrent"]
 categories    = ["network-programming"]
 
 [package.metadata.docs.rs]
-all-features = true
+all-features = false
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]

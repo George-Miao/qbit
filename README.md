@@ -50,7 +50,7 @@ let torrents = api.get_version().await;
 
 ## HTTP Client
 
-The crate by default uses `reqwest` as the HTTP client. It also supports [`cyper`](https://github.com/compio-rs/cyper) (HTTP client for [`compio`](https://github.com/compio-rs/compio) based on hyper) under the `cyper` feature flag. To uses it, disable default features and enable `cyper`:
+The crate by default uses `reqwest` as the HTTP client. It also supports [`cyper`](https://github.com/compio-rs/cyper) (HTTP client for [`compio`](https://github.com/compio-rs/compio) based on hyper) under the `cyper` feature flag. To use it, disable default features and enable `cyper`:
 
 ```bash
 cargo add qbit-rs --no-default-features --features cyper
