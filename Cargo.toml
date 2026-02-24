@@ -17,9 +17,11 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-default    = ["builder", "native-tls"]
-rustls-tls = ["reqwest/rustls-tls"]
-native-tls = ["reqwest/default-tls"]
+default    = ["builder", "native-tls", "reqwest"]
+reqwest    = ["dep:reqwest"]
+cyper      = ["dep:cyper"]
+rustls-tls = ["reqwest?/rustls", "cyper?/rustls"]
+native-tls = ["reqwest?/default-tls", "cyper?/native-tls"]
 
 # enables typed-builder on args types
 builder = ["dep:typed-builder"]
@@ -27,7 +29,6 @@ builder = ["dep:typed-builder"]
 [dependencies]
 typed-builder = { version = "0.18.2", optional = true }
 serde         = { version = "1.0.202", features = ["derive"] }
-reqwest       = { version = "0.12.4", default-features = false, features = ["charset", "http2", "macos-system-configuration", "json", "multipart"] }
 url           = { version = "2.5.0", features = ["serde"] }
 
 mod_use     = "0.2.1"
@@ -39,8 +40,28 @@ thiserror   = "1.0.61"
 tracing     = "0.1.40"
 serde_json  = "1.0.117"
 bytes       = "1.6.0"
+cfg-if      = "1.0.4"
+http        = "1.1.0"
+mime        = "0.3.17"
+
+# HTTP Client
+# compio / cyper
+[dependencies.cyper]
+version = "0.8"
+optional = true
+default-features = false
+features = ["json", "multipart"]
+
+# tokio / reqwest
+[dependencies.reqwest]
+version = "0.13"
+optional = true
+default-features = false
+features = ["json", "form", "multipart", "query"]
+
 [dev-dependencies]
 tokio = { version = "1.27.0", features = ["full"] }
+compio = { version = "0.18.0", features = ["all"] }
 
 dotenv             = "0.15.0"
 tracing-subscriber = "0.3.16"

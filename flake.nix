@@ -43,6 +43,7 @@
             llvm.libstdcxxClang
             openssl
             pkg-config
+            cargo-nextest
           ]
           ++ (
             if

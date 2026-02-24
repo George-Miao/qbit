@@ -1,7 +1,6 @@
-use reqwest::{Response, StatusCode, header::SET_COOKIE};
 use tap::Pipe;
 
-use crate::{ApiError, Error, Result};
+use crate::{ApiError, Error, Response, Result, StatusCode, header::SET_COOKIE};
 
 pub trait FromResponse {
     fn from_response(response: &Response) -> Result<Self>

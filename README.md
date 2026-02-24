@@ -22,7 +22,7 @@ or manually add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-qbit-rs = "0.4"
+qbit-rs = "0.5"
 ```
 
 Then use it in your code:
@@ -48,9 +48,19 @@ let api = Qbit::builder()
 let torrents = api.get_version().await;
 ```
 
-For more methods, see [`Qbit`](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html).
+## HTTP Client
+
+The crate by default uses `reqwest` as the HTTP client. It also supports [`cyper`](https://github.com/compio-rs/cyper) (HTTP client for [`compio`](https://github.com/compio-rs/compio) based on hyper) under the `cyper` feature flag. To uses it, disable default features and enable `cyper`:
+
+```bash
+cargo add qbit-rs --no-default-features --features cyper
+```
+
+Notice that this will also disable tls and `typed-builder` support for args. Make sure to enable `builder`, `native-tls` or `rustls-tls` if you need them.
 
 ## API Coverage
+
+For all methods, see [`Qbit`](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html).
 
 Most of the API is covered, except `RSS` and `Search`. PR is welcomed if you need that part of the API. The following is a list of the implementation status:
 

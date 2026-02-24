@@ -2,11 +2,10 @@
 
 use std::{fmt::Debug, sync::Mutex};
 
-use reqwest::Client;
 use tap::Pipe;
 use url::Url;
 
-use crate::{LoginState, Qbit, ext::Cookie, model::Credential};
+use crate::{Client, LoginState, Qbit, ext::Cookie, model::Credential};
 
 pub struct QbitBuilder<C = (), R = (), E = ()> {
     credential: C,
@@ -84,7 +83,7 @@ impl<C, R, E> QbitBuilder<C, R, E> {
     }
 }
 
-impl<C, U> QbitBuilder<C, reqwest::Client, U>
+impl<C, U> QbitBuilder<C, Client, U>
 where
     C: IntoLoginState,
     U: TryInto<Url>,
@@ -109,14 +108,14 @@ where
     U::Error: Debug,
 {
     pub fn build(self) -> Qbit {
-        self.client(reqwest::Client::new()).build()
+        self.client(Client::new()).build()
     }
 }
 
 #[test]
 fn test_builder() {
     QbitBuilder::new()
-        .client(reqwest::Client::new())
+        .client(Client::new())
         .endpoint("http://localhost:8080")
         .credential(Credential::new("admin", "adminadmin"))
         .build();
@@ -127,7 +126,7 @@ fn test_builder() {
         .build();
 
     QbitBuilder::new()
-        .client(reqwest::Client::new())
+        .client(Client::new())
         .endpoint("http://localhost:8080")
         .cookie("SID=1234567890")
         .build();

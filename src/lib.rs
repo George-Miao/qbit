@@ -10,10 +10,12 @@ use std::{
     sync::{Mutex, MutexGuard},
 };
 
+mod client;
+use client::*;
+
 pub mod model;
 pub use builder::QbitBuilder;
 use bytes::Bytes;
-use reqwest::{Client, Method, Response, StatusCode, header};
 use serde::Serialize;
 use serde_with::skip_serializing_none;
 use tap::{Pipe, TapFallible};
@@ -101,16 +103,6 @@ impl Qbit {
         U::Error: Debug,
     {
         Self::new_with_client(endpoint, credential, Client::new())
-    }
-
-    #[deprecated = "Use `QbitBuilder::cookie` instead"]
-    pub fn with_cookie(self, cookie: impl Into<String>) -> Self {
-        Self {
-            state: Mutex::from(LoginState::CookieProvided {
-                cookie: cookie.into(),
-            }),
-            ..self
-        }
     }
 
     pub async fn get_cookie(&self) -> Option<String> {
@@ -516,7 +508,7 @@ impl Qbit {
                             .as_object()
                             .unwrap()
                             .into_iter()
-                            .fold(reqwest::multipart::Form::new(), |form, (k, v)| {
+                            .fold(multipart::Form::new(), |form, (k, v)| {
                                 // If we directly call to_string() on a Value containing a string
                                 // like "hello", it will include the
                                 // quotes: "\"hello\"". We need to
@@ -528,7 +520,7 @@ impl Qbit {
                                 form.text(k.to_string(), v.to_string())
                             }),
                         |mut form, torrent| {
-                            let p = reqwest::multipart::Part::bytes(torrent.data.clone())
+                            let p = multipart::Part::bytes(torrent.data.clone())
                                 .file_name(torrent.filename.to_string())
                                 .mime_str("application/x-bittorrent")
                                 .unwrap();
@@ -536,15 +528,19 @@ impl Qbit {
                             form
                         },
                     );
+
                     let req = self
                         .client
                         .request(Method::POST, self.url("torrents/add"))
+                        .check()?
                         .multipart(form)
+                        .check()?
                         .header(header::COOKIE, {
                             self.state()
                                 .as_cookie()
                                 .expect("Cookie should be set after login")
-                        });
+                        })
+                        .check()?;
 
                     trace!(request = ?req, "Sending request");
                     let res = req
@@ -1421,6 +1417,7 @@ impl Qbit {
             debug!("Cookie not found, logging in");
             self.client
                 .request(Method::POST, self.url("auth/login"))
+                .check()?
                 .pipe(|req| {
                     req.form(
                         self.state()
@@ -1428,6 +1425,7 @@ impl Qbit {
                             .expect("Credential should be set if cookie is not set"),
                     )
                 })
+                .check()?
                 .send()
                 .await?
                 .map_status(|code| match code as _ {
@@ -1455,23 +1453,27 @@ impl Qbit {
             // If it's not the first attempt, we need to re-login
             self.login(i != 0).await?;
 
-            let mut req =
-                self.client
-                    .request(method.clone(), self.url(path))
-                    .header(header::COOKIE, {
-                        self.state()
-                            .as_cookie()
-                            .expect("Cookie should be set after login")
-                    });
+            let mut req = self
+                .client
+                .request(method.clone(), self.url(path))
+                .check()?
+                .header(header::COOKIE, {
+                    self.state()
+                        .as_cookie()
+                        .expect("Cookie should be set after login")
+                })
+                .check()?;
 
             if let Some(ref body) = body {
                 match method {
-                    Method::GET => req = req.query(body),
-                    Method::POST => req = req.form(body),
+                    Method::GET => req = req.query(body).check()?,
+                    Method::POST => req = req.form(body).check()?,
                     _ => unreachable!("Only GET and POST are supported"),
                 }
             }
+
             trace!(request = ?req, "Sending request");
+
             let res = req
                 .send()
                 .await?
@@ -1531,7 +1533,7 @@ const NONE: Option<&'static ()> = Option::None;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Http error: {0}")]
-    HttpError(#[from] reqwest::Error),
+    HttpError(#[from] client::Error),
 
     #[error("API Returned bad response: {explain}")]
     BadResponse { explain: &'static str },
@@ -1641,7 +1643,8 @@ mod test {
         }
     }
 
-    #[tokio::test]
+    #[cfg_attr(feature = "reqwest", tokio::test)]
+    #[cfg_attr(feature = "cyper", compio::test)]
     async fn test_login() {
         let client = prepare().await.unwrap();
 
@@ -1651,20 +1654,22 @@ mod test {
         );
     }
 
-    #[tokio::test]
+    #[cfg_attr(feature = "reqwest", tokio::test)]
+    #[cfg_attr(feature = "cyper", compio::test)]
     async fn test_preference() {
         let client = prepare().await.unwrap();
 
         client.get_preferences().await.unwrap();
     }
 
-    #[tokio::test]
+    #[cfg_attr(feature = "reqwest", tokio::test)]
+    #[cfg_attr(feature = "cyper", compio::test)]
     async fn test_add_torrent() {
         let client = prepare().await.unwrap();
         let arg = AddTorrentArg {
             source: TorrentSource::Urls {
                 urls: vec![
-                    "https://releases.ubuntu.com/22.04/ubuntu-22.04.4-desktop-amd64.iso.torrent"
+                    "https://github.com/webtorrent/webtorrent-fixtures/raw/d20eec0ae19a18b088cf7b221ff70bb9f840c226/fixtures/alice.torrent"
                         .parse()
                         .unwrap(),
                 ]
@@ -1675,14 +1680,15 @@ mod test {
         };
         client.add_torrent(arg).await.unwrap();
     }
-    #[tokio::test]
+    #[cfg_attr(feature = "reqwest", tokio::test)]
+    #[cfg_attr(feature = "cyper", compio::test)]
     async fn test_add_torrent_file() {
         let client = prepare().await.unwrap();
         let arg = AddTorrentArg {
             source: TorrentSource::TorrentFiles {
                 torrents: vec![ TorrentFile {
-                    filename: "ubuntu-22.04.4-desktop-amd64.iso.torrent".into(),
-                    data: reqwest::get("https://releases.ubuntu.com/22.04/ubuntu-22.04.4-desktop-amd64.iso.torrent")
+                    filename: "alice.torrent".into(),
+                    data: client::get("https://github.com/webtorrent/webtorrent-fixtures/raw/d20eec0ae19a18b088cf7b221ff70bb9f840c226/fixtures/alice.torrent")
                         .await
                         .unwrap()
                         .bytes()
@@ -1697,7 +1703,8 @@ mod test {
         client.add_torrent(arg).await.unwrap();
     }
 
-    #[tokio::test]
+    #[cfg_attr(feature = "reqwest", tokio::test)]
+    #[cfg_attr(feature = "cyper", compio::test)]
     async fn test_get_torrent_list() {
         let client = prepare().await.unwrap();
         let list = client

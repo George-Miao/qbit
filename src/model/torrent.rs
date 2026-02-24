@@ -1,10 +1,9 @@
 use std::fmt::{Debug, Display};
 
-use reqwest::Url;
 use serde::Serialize;
-use serde_with::{skip_serializing_none, SerializeDisplay};
+use serde_with::{SerializeDisplay, skip_serializing_none};
 
-use crate::model::Sep;
+use crate::{client::Url, model::Sep};
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -156,7 +155,7 @@ pub enum State {
     /// Torrent is being seeded and data is being transferred
     #[serde(rename = "uploading")]
     Uploading,
-    /// Torrent is paused and has finished downloading, 
+    /// Torrent is paused and has finished downloading,
     /// stoppedUP is new name in qBit5+
     #[serde(rename = "pausedUP", alias = "stoppedUP")]
     PausedUP,
@@ -421,7 +420,7 @@ pub enum TorrentSource {
 /// Torrent file
 pub struct TorrentFile {
     pub filename: String,
-    pub data: Vec<u8>
+    pub data: Vec<u8>,
 }
 impl Default for TorrentSource {
     fn default() -> Self {
