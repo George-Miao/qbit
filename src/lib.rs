@@ -517,9 +517,10 @@ impl Qbit {
                             .unwrap()
                             .into_iter()
                             .fold(reqwest::multipart::Form::new(), |form, (k, v)| {
-                                // If we directly call to_string() on a Value containing a string like "hello",
-                                // it will include the quotes: "\"hello\"".
-                                // We need to use as_str() first to get the inner string without quotes.
+                                // If we directly call to_string() on a Value containing a string
+                                // like "hello", it will include the
+                                // quotes: "\"hello\"". We need to
+                                // use as_str() first to get the inner string without quotes.
                                 let v = match v.as_str() {
                                     Some(v_str) => v_str.to_string(),
                                     None => v.to_string(),
