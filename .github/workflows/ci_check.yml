@@ -21,16 +21,19 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust Toolchain
         run: |
           rustup toolchain install nightly
           rustup +nightly component add clippy
-      - name: Check clippy
+      - name: Check clippy default
         run: |
-          cargo +nightly clippy --all-features --all-targets -- -Dwarnings
+          cargo +nightly clippy --all-targets -- -Dwarnings
+      - name: Check clippy cyper
+        run: |
+          cargo +nightly clippy --all-targets --no-default-features --features cyper -- -Dwarnings
       - name: Check Docs
         run: |
-          cargo +nightly doc --workspace --all-features --no-deps
+          cargo +nightly doc --workspace --no-deps

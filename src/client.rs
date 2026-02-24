@@ -1,12 +1,14 @@
 #![allow(unused_imports)]
 
+use crate::Result;
+
 cfg_if::cfg_if! {
     if #[cfg(all(feature = "reqwest", feature = "cyper"))] {
         compile_error!("The 'reqwest' and 'cyper' features cannot be enabled at the same time. To use `cyper`, disable default feature first.");
     } else if #[cfg(feature = "reqwest")] {
-        pub(crate) use reqwest::{Client, Error, Method, Response, StatusCode, Url, get, header, multipart};
+        pub(crate) use reqwest::{Client, Error, Method, Response, StatusCode, Url, RequestBuilder, get, header, multipart};
     } else if #[cfg(feature = "cyper")] {
-        pub(crate) use cyper::{Client, Response, Error, multipart};
+        pub(crate) use cyper::{Client, Response, Error, RequestBuilder, multipart};
         pub(crate) use url::Url;
         pub(crate) use http::{Method, StatusCode, header};
         pub(crate) use cyper_ext::*;
@@ -17,17 +19,16 @@ cfg_if::cfg_if! {
 
 pub(crate) trait CheckError: Sized {
     type Ok;
-    type Error;
-    fn check(self) -> Result<Self::Ok, Self::Error>;
+
+    fn check(self) -> Result<Self::Ok>;
 }
 
 #[cfg(feature = "reqwest")]
 impl CheckError for reqwest::RequestBuilder {
-    type Error = reqwest::Error;
     type Ok = reqwest::RequestBuilder;
 
     #[inline(always)]
-    fn check(self) -> Result<Self, Self::Error> {
+    fn check(self) -> Result<Self> {
         Ok(self)
     }
 }
@@ -56,12 +57,11 @@ mod cyper_ext {
     }
 
     impl<T> CheckError for cyper::Result<T> {
-        type Error = cyper::Error;
         type Ok = T;
 
         #[inline(always)]
-        fn check(self) -> Result<T, Self::Error> {
-            self
+        fn check(self) -> Result<T> {
+            Ok(self?)
         }
     }
 }

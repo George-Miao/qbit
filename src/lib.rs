@@ -142,7 +142,7 @@ impl Qbit {
     }
 
     pub async fn shutdown(&self) -> Result<()> {
-        self.post("app/shutdown", NONE).await?.end()
+        self.post("app/shutdown").await?.end()
     }
 
     pub async fn get_preferences(&self) -> Result<Preferences> {
@@ -162,11 +162,11 @@ impl Qbit {
             json: String,
         }
 
-        self.post(
+        self.post_with(
             "app/setPreferences",
-            Some(&Arg {
+            &Arg {
                 json: serde_json::to_string(preferences.borrow())?,
-            }),
+            },
         )
         .await?
         .end()
@@ -274,9 +274,7 @@ impl Qbit {
     }
 
     pub async fn toggle_speed_limits_mode(&self) -> Result<()> {
-        self.post("transfer/toggleSpeedLimitsMode", None::<&()>)
-            .await?
-            .end()
+        self.post("transfer/toggleSpeedLimitsMode").await?.end()
     }
 
     pub async fn get_download_limit(&self) -> Result<u64> {
@@ -298,7 +296,7 @@ impl Qbit {
             limit: u64,
         }
 
-        self.post("transfer/setDownloadLimit", Some(&Arg { limit }))
+        self.post_with("transfer/setDownloadLimit", &Arg { limit })
             .await?
             .end()
     }
@@ -322,7 +320,7 @@ impl Qbit {
             limit: u64,
         }
 
-        self.post("transfer/setUploadLimit", Some(&Arg { limit }))
+        self.post_with("transfer/setUploadLimit", &Arg { limit })
             .await?
             .end()
     }
@@ -333,11 +331,11 @@ impl Qbit {
             peers: String,
         }
 
-        self.post(
+        self.post_with(
             "transfer/banPeers",
-            Some(&Arg {
+            &Arg {
                 peers: peers.into().to_string(),
-            }),
+            },
         )
         .await?
         .end()
@@ -446,13 +444,13 @@ impl Qbit {
     }
 
     pub async fn stop_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        self.post("torrents/stop", Some(&HashesArg::new(hashes)))
+        self.post_with("torrents/stop", &HashesArg::new(hashes))
             .await?
             .end()
     }
 
     pub async fn start_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        self.post("torrents/start", Some(&HashesArg::new(hashes)))
+        self.post_with("torrents/start", &HashesArg::new(hashes))
             .await?
             .end()
     }
@@ -469,101 +467,82 @@ impl Qbit {
             hashes: Hashes,
             delete_files: Option<bool>,
         }
-        self.post(
+        self.post_with(
             "torrents/delete",
-            Some(&Arg {
+            &Arg {
                 hashes: hashes.into(),
                 delete_files: delete_files.into(),
-            }),
+            },
         )
         .await?
         .end()
     }
 
     pub async fn recheck_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        self.post("torrents/recheck", Some(&HashesArg::new(hashes)))
+        self.post_with("torrents/recheck", &HashesArg::new(hashes))
             .await?
             .end()
     }
 
     pub async fn reannounce_torrents(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        self.post("torrents/reannounce", Some(&HashesArg::new(hashes)))
+        self.post_with("torrents/reannounce", &HashesArg::new(hashes))
             .await?
             .end()
     }
 
     pub async fn add_torrent(&self, arg: impl Borrow<AddTorrentArg> + Send + Sync) -> Result<()> {
-        let a: &AddTorrentArg = arg.borrow();
-        match &a.source {
+        use multipart::Form;
+
+        fn make_form(
+            arg: &AddTorrentArg,
+            torrents: &[TorrentFile],
+        ) -> Result<Form, serde_json::Error> {
+            let form = serde_json::to_value(arg)?
+                .as_object()
+                .unwrap()
+                .into_iter()
+                .fold(Form::new(), |form, (k, v)| {
+                    let v = match v.as_str() {
+                        Some(v_str) => v_str.to_string(),
+                        None => v.to_string(),
+                    };
+                    form.text(k.to_string(), v.to_string())
+                });
+
+            torrents
+                .iter()
+                .fold(form, |mut form, torrent| {
+                    let p = multipart::Part::bytes(torrent.data.clone())
+                        .file_name(torrent.filename.to_string())
+                        .mime_str("application/x-bittorrent")
+                        .unwrap();
+                    form = form.part("torrents", p);
+                    form
+                })
+                .pipe(Ok)
+        }
+
+        let args: &AddTorrentArg = arg.borrow();
+
+        match &args.source {
             TorrentSource::Urls { urls: _ } => {
-                self.post("torrents/add", Some(arg.borrow())).await?.end()
+                self.post_with("torrents/add", arg.borrow()).await?.end()
             }
-            TorrentSource::TorrentFiles { torrents } => {
-                for i in 0..3 {
-                    // If it's not the first attempt, we need to re-login
-                    self.login(i != 0).await?;
-                    // Create a multipart form containing the torrent files and other arguments
-                    let form = torrents.iter().fold(
-                        serde_json::to_value(a)?
-                            .as_object()
-                            .unwrap()
-                            .into_iter()
-                            .fold(multipart::Form::new(), |form, (k, v)| {
-                                // If we directly call to_string() on a Value containing a string
-                                // like "hello", it will include the
-                                // quotes: "\"hello\"". We need to
-                                // use as_str() first to get the inner string without quotes.
-                                let v = match v.as_str() {
-                                    Some(v_str) => v_str.to_string(),
-                                    None => v.to_string(),
-                                };
-                                form.text(k.to_string(), v.to_string())
-                            }),
-                        |mut form, torrent| {
-                            let p = multipart::Part::bytes(torrent.data.clone())
-                                .file_name(torrent.filename.to_string())
-                                .mime_str("application/x-bittorrent")
-                                .unwrap();
-                            form = form.part("torrents", p);
-                            form
-                        },
-                    );
-
-                    let req = self
-                        .client
-                        .request(Method::POST, self.url("torrents/add"))
-                        .check()?
-                        .multipart(form)
-                        .check()?
-                        .header(header::COOKIE, {
-                            self.state()
-                                .as_cookie()
-                                .expect("Cookie should be set after login")
-                        })
-                        .check()?;
-
-                    trace!(request = ?req, "Sending request");
-                    let res = req
-                        .send()
-                        .await?
-                        .map_status(|code| match code as _ {
-                            StatusCode::FORBIDDEN => Some(Error::ApiError(ApiError::NotLoggedIn)),
-                            _ => None,
-                        })
-                        .tap_ok(|response| trace!(?response));
-
-                    match res {
-                        Err(Error::ApiError(ApiError::NotLoggedIn)) => {
-                            // Retry
-                            warn!("Cookie is not valid, retrying");
-                        }
-                        Err(e) => return Err(e),
-                        Ok(t) => return t.end(),
+            TorrentSource::TorrentFiles { torrents } => self
+                .request(
+                    Method::POST,
+                    "torrents/add",
+                    Some(|req: RequestBuilder| req.multipart(make_form(args, torrents)?).check()),
+                )
+                .await?
+                .map_status(|code| match code as _ {
+                    StatusCode::FORBIDDEN => Some(Error::ApiError(ApiError::NotLoggedIn)),
+                    StatusCode::UNSUPPORTED_MEDIA_TYPE => {
+                        Some(Error::ApiError(ApiError::TorrentFileInvalid))
                     }
-                }
-
-                Err(Error::ApiError(ApiError::NotLoggedIn))
-            }
+                    _ => None,
+                })?
+                .end(),
         }
     }
 
@@ -578,12 +557,12 @@ impl Qbit {
             urls: String,
         }
 
-        self.post(
+        self.post_with(
             "torrents/addTrackers",
-            Some(&Arg {
+            &Arg {
                 hash: hash.as_ref(),
                 urls: urls.into().to_string(),
-            }),
+            },
         )
         .await
         .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
@@ -605,13 +584,13 @@ impl Qbit {
             orig_url: Url,
             new_url: Url,
         }
-        self.post(
+        self.post_with(
             "torrents/editTracker",
-            Some(&EditTrackerArg {
+            &EditTrackerArg {
                 hash: hash.as_ref(),
                 orig_url,
                 new_url,
-            }),
+            },
         )
         .await?
         .map_status(|c| match c {
@@ -634,12 +613,12 @@ impl Qbit {
             urls: Sep<Url, '|'>,
         }
 
-        self.post(
+        self.post_with(
             "torrents/removeTrackers",
-            Some(&Arg {
+            &Arg {
                 hash: hash.as_ref(),
                 urls: urls.into(),
-            }),
+            },
         )
         .await
         .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
@@ -657,12 +636,12 @@ impl Qbit {
             peers: Sep<String, '|'>,
         }
 
-        self.post(
+        self.post_with(
             "torrents/addPeers",
-            Some(&AddPeersArg {
+            &AddPeersArg {
                 hash: hashes.into().to_string(),
                 peers: peers.into(),
-            }),
+            },
         )
         .await
         .and_then(|r| {
@@ -678,7 +657,7 @@ impl Qbit {
     }
 
     pub async fn increase_priority(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        self.post("torrents/increasePrio", Some(&HashesArg::new(hashes)))
+        self.post_with("torrents/increasePrio", &HashesArg::new(hashes))
             .await?
             .map_status(|c| {
                 if c == StatusCode::CONFLICT {
@@ -691,7 +670,7 @@ impl Qbit {
     }
 
     pub async fn decrease_priority(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        self.post("torrents/decreasePrio", Some(&HashesArg::new(hashes)))
+        self.post_with("torrents/decreasePrio", &HashesArg::new(hashes))
             .await?
             .map_status(|c| {
                 if c == StatusCode::CONFLICT {
@@ -704,7 +683,7 @@ impl Qbit {
     }
 
     pub async fn maximal_priority(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        self.post("torrents/topPrio", Some(&HashesArg::new(hashes)))
+        self.post_with("torrents/topPrio", &HashesArg::new(hashes))
             .await?
             .map_status(|c| {
                 if c == StatusCode::CONFLICT {
@@ -717,7 +696,7 @@ impl Qbit {
     }
 
     pub async fn minimal_priority(&self, hashes: impl Into<Hashes> + Send + Sync) -> Result<()> {
-        self.post("torrents/bottomPrio", Some(&HashesArg::new(hashes)))
+        self.post_with("torrents/bottomPrio", &HashesArg::new(hashes))
             .await?
             .map_status(|c| {
                 if c == StatusCode::CONFLICT {
@@ -742,13 +721,13 @@ impl Qbit {
             priority: Priority,
         }
 
-        self.post(
+        self.post_with(
             "torrents/filePrio",
-            Some(&SetFilePriorityArg {
+            &SetFilePriorityArg {
                 hash: hash.as_ref(),
                 id: indexes.into(),
                 priority,
-            }),
+            },
         )
         .await?
         .map_status(|c| match c {
@@ -782,12 +761,12 @@ impl Qbit {
             limit: u64,
         }
 
-        self.post(
+        self.post_with(
             "torrents/downloadLimit",
-            Some(&Arg {
+            &Arg {
                 hashes: hashes.into().to_string(),
                 limit,
-            }),
+            },
         )
         .await?
         .end()
@@ -797,7 +776,7 @@ impl Qbit {
         &self,
         arg: impl Borrow<SetTorrentSharedLimitArg> + Send + Sync,
     ) -> Result<()> {
-        self.post("torrents/setShareLimits", Some(arg.borrow()))
+        self.post_with("torrents/setShareLimits", arg.borrow())
             .await?
             .end()
     }
@@ -824,12 +803,12 @@ impl Qbit {
             limit: u64,
         }
 
-        self.post(
+        self.post_with(
             "torrents/uploadLimit",
-            Some(&Arg {
+            &Arg {
                 hashes: hashes.into().to_string(),
                 limit,
-            }),
+            },
         )
         .await?
         .end()
@@ -846,12 +825,12 @@ impl Qbit {
             location: &'a Path,
         }
 
-        self.post(
+        self.post_with(
             "torrents/setLocation",
-            Some(&Arg {
+            &Arg {
                 hashes: hashes.into().to_string(),
                 location: location.as_ref(),
-            }),
+            },
         )
         .await?
         .map_status(|c| match c {
@@ -874,12 +853,12 @@ impl Qbit {
             name: &'a str,
         }
 
-        self.post(
+        self.post_with(
             "torrents/rename",
-            Some(&RenameArg {
+            &RenameArg {
                 hash: hash.as_ref(),
                 name: name.as_str(),
-            }),
+            },
         )
         .await?
         .map_status(|c| match c {
@@ -901,12 +880,12 @@ impl Qbit {
             category: &'a str,
         }
 
-        self.post(
+        self.post_with(
             "torrents/setCategory",
-            Some(&Arg {
+            &Arg {
                 hashes: hashes.into().to_string(),
                 category: category.as_ref(),
-            }),
+            },
         )
         .await?
         .map_status(|c| {
@@ -939,12 +918,12 @@ impl Qbit {
             save_path: &'a Path,
         }
 
-        self.post(
+        self.post_with(
             "torrents/createCategory",
-            Some(&Arg {
+            &Arg {
                 category: category.as_str(),
                 save_path: save_path.as_ref(),
-            }),
+            },
         )
         .await?
         .end()
@@ -962,12 +941,12 @@ impl Qbit {
             save_path: &'a Path,
         }
 
-        self.post(
+        self.post_with(
             "torrents/createCategory",
-            Some(&Arg {
+            &Arg {
                 category: category.as_str(),
                 save_path: save_path.as_ref(),
-            }),
+            },
         )
         .await?
         .map_status(|c| {
@@ -989,11 +968,11 @@ impl Qbit {
             categories: &'a str,
         }
 
-        self.post(
+        self.post_with(
             "torrents/removeCategories",
-            Some(&Arg {
+            &Arg {
                 categories: &categories.into().to_string(),
-            }),
+            },
         )
         .await?
         .end()
@@ -1010,12 +989,12 @@ impl Qbit {
             tags: &'a str,
         }
 
-        self.post(
+        self.post_with(
             "torrents/addTags",
-            Some(&Arg {
+            &Arg {
                 hashes: hashes.into().to_string(),
                 tags: &tags.into().to_string(),
-            }),
+            },
         )
         .await?
         .end()
@@ -1033,12 +1012,12 @@ impl Qbit {
             tags: Option<String>,
         }
 
-        self.post(
+        self.post_with(
             "torrents/removeTags",
-            Some(&Arg {
+            &Arg {
                 hashes: hashes.into().to_string(),
                 tags: tags.map(|t| t.into().to_string()),
-            }),
+            },
         )
         .await?
         .end()
@@ -1058,11 +1037,11 @@ impl Qbit {
             tags: String,
         }
 
-        self.post(
+        self.post_with(
             "torrents/createTags",
-            Some(&Arg {
+            &Arg {
                 tags: tags.into().to_string(),
-            }),
+            },
         )
         .await?
         .end()
@@ -1074,11 +1053,11 @@ impl Qbit {
             tags: String,
         }
 
-        self.post(
+        self.post_with(
             "torrents/deleteTags",
-            Some(&Arg {
+            &Arg {
                 tags: tags.into().to_string(),
-            }),
+            },
         )
         .await?
         .end()
@@ -1095,12 +1074,12 @@ impl Qbit {
             enable: bool,
         }
 
-        self.post(
+        self.post_with(
             "torrents/setAutoManagement",
-            Some(&Arg {
+            &Arg {
                 hashes: hashes.into().to_string(),
                 enable,
-            }),
+            },
         )
         .await?
         .end()
@@ -1110,24 +1089,18 @@ impl Qbit {
         &self,
         hashes: impl Into<Hashes> + Send + Sync,
     ) -> Result<()> {
-        self.post(
-            "torrents/toggleSequentialDownload",
-            Some(&HashesArg::new(hashes)),
-        )
-        .await?
-        .end()
+        self.post_with("torrents/toggleSequentialDownload", &HashesArg::new(hashes))
+            .await?
+            .end()
     }
 
     pub async fn toggle_first_last_piece_priority(
         &self,
         hashes: impl Into<Hashes> + Send + Sync,
     ) -> Result<()> {
-        self.post(
-            "torrents/toggleFirstLastPiecePrio",
-            Some(&HashesArg::new(hashes)),
-        )
-        .await?
-        .end()
+        self.post_with("torrents/toggleFirstLastPiecePrio", &HashesArg::new(hashes))
+            .await?
+            .end()
     }
 
     pub async fn set_force_start(
@@ -1141,12 +1114,12 @@ impl Qbit {
             value: bool,
         }
 
-        self.post(
+        self.post_with(
             "torrents/setForceStart",
-            Some(&Arg {
+            &Arg {
                 hashes: hashes.into().to_string(),
                 value,
-            }),
+            },
         )
         .await?
         .end()
@@ -1163,12 +1136,12 @@ impl Qbit {
             value: bool,
         }
 
-        self.post(
+        self.post_with(
             "torrents/setSuperSeeding",
-            Some(&Arg {
+            &Arg {
                 hashes: hashes.into().to_string(),
                 value,
-            }),
+            },
         )
         .await?
         .end()
@@ -1188,13 +1161,13 @@ impl Qbit {
             new_path: &'a Path,
         }
 
-        self.post(
+        self.post_with(
             "torrents/renameFile",
-            Some(&Arg {
+            &Arg {
                 hash: hash.as_ref(),
                 old_path: old_path.as_ref(),
                 new_path: new_path.as_ref(),
-            }),
+            },
         )
         .await?
         .map_status(|c| {
@@ -1221,13 +1194,13 @@ impl Qbit {
             new_path: &'a Path,
         }
 
-        self.post(
+        self.post_with(
             "torrents/renameFolder",
-            Some(&Arg {
+            &Arg {
                 hash: hash.as_ref(),
                 old_path: old_path.as_ref(),
                 new_path: new_path.as_ref(),
-            }),
+            },
         )
         .await?
         .map_status(|c| {
@@ -1246,11 +1219,11 @@ impl Qbit {
             path: &'a str,
         }
 
-        self.post(
+        self.post_with(
             "rss/addFolder",
-            Some(&Arg {
+            &Arg {
                 path: path.as_ref(),
-            }),
+            },
         )
         .await?
         .end()
@@ -1267,12 +1240,12 @@ impl Qbit {
             path: Option<&'a str>,
         }
 
-        self.post(
+        self.post_with(
             "rss/addFeed",
-            Some(&Arg {
+            &Arg {
                 url: url.as_ref(),
                 path: path.as_ref().map(AsRef::as_ref),
-            }),
+            },
         )
         .await?
         .end()
@@ -1284,11 +1257,11 @@ impl Qbit {
             path: &'a str,
         }
 
-        self.post(
+        self.post_with(
             "rss/removeItem",
-            Some(&Arg {
+            &Arg {
                 path: path.as_ref(),
-            }),
+            },
         )
         .await?
         .end()
@@ -1306,12 +1279,12 @@ impl Qbit {
             dest_path: &'a str,
         }
 
-        self.post(
+        self.post_with(
             "rss/moveItem",
-            Some(&Arg {
+            &Arg {
                 item_path: item_path.as_ref(),
                 dest_path: dest_path.as_ref(),
-            }),
+            },
         )
         .await?
         .end()
@@ -1329,12 +1302,12 @@ impl Qbit {
             article_id: Option<&'a str>,
         }
 
-        self.post(
+        self.post_with(
             "rss/markAsRead",
-            Some(&Arg {
+            &Arg {
                 item_path: item_path.as_ref(),
                 article_id: article_id.as_ref().map(AsRef::as_ref),
-            }),
+            },
         )
         .await?
         .end()
@@ -1347,11 +1320,11 @@ impl Qbit {
             item_path: &'a str,
         }
 
-        self.post(
+        self.post_with(
             "rss/refreshItem",
-            Some(&Arg {
+            &Arg {
                 item_path: item_path.as_ref(),
-            }),
+            },
         )
         .await?
         .end()
@@ -1369,12 +1342,12 @@ impl Qbit {
             new_rule_name: &'a str,
         }
 
-        self.post(
+        self.post_with(
             "rss/renameRule",
-            Some(&Arg {
+            &Arg {
                 rule_name: rule_name.as_ref(),
                 new_rule_name: new_rule_name.as_ref(),
-            }),
+            },
         )
         .await?
         .end()
@@ -1387,11 +1360,11 @@ impl Qbit {
             rule_name: &'a str,
         }
 
-        self.post(
+        self.post_with(
             "rss/removeRule",
-            Some(&Arg {
+            &Arg {
                 rule_name: rule_name.as_ref(),
-            }),
+            },
         )
         .await?
         .end()
@@ -1409,8 +1382,10 @@ impl Qbit {
         self.state.lock().unwrap()
     }
 
-    /// Log in to qBittorrent. Set force to `true` to forcefully re-login
-    /// regardless if cookie is already set.
+    /// Log in to qBittorrent.
+    ///
+    /// Set force to `true` to force re-login regardless if cookie is already
+    /// set.
     pub async fn login(&self, force: bool) -> Result<()> {
         let re_login = force || { self.state().as_cookie().is_none() };
         if re_login {
@@ -1443,11 +1418,45 @@ impl Qbit {
         Ok(())
     }
 
+    async fn get(&self, path: &'static str) -> Result<Response> {
+        self.request(Method::GET, path, NONE).await
+    }
+
+    async fn get_with(
+        &self,
+        path: &'static str,
+        param: &(impl Serialize + Sync),
+    ) -> Result<Response> {
+        self.request(
+            Method::GET,
+            path,
+            Some(|req: RequestBuilder| req.query(param).check()),
+        )
+        .await
+    }
+
+    async fn post(&self, path: &'static str) -> Result<Response> {
+        self.request(Method::POST, path, NONE).await
+    }
+
+    async fn post_with(
+        &self,
+        path: &'static str,
+        body: &(impl Serialize + Sync),
+    ) -> Result<Response> {
+        self.request(
+            Method::POST,
+            path,
+            Some(|req: RequestBuilder| req.form(body).check()),
+        )
+        .await
+    }
+
     async fn request(
         &self,
         method: Method,
         path: &'static str,
-        body: Option<&(impl Serialize + Sync)>,
+        mut map: Option<impl FnMut(RequestBuilder) -> Result<RequestBuilder>>,
     ) -> Result<Response> {
         for i in 0..3 {
             // If it's not the first attempt, we need to re-login
@@ -1464,12 +1473,8 @@ impl Qbit {
                 })
                 .check()?;
 
-            if let Some(ref body) = body {
-                match method {
-                    Method::GET => req = req.query(body).check()?,
-                    Method::POST => req = req.form(body).check()?,
-                    _ => unreachable!("Only GET and POST are supported"),
-                }
+            if let Some(map) = map.as_mut() {
+                req = map(req)?;
             }
 
             trace!(request = ?req, "Sending request");
@@ -1495,26 +1500,6 @@ impl Qbit {
 
         Err(Error::ApiError(ApiError::NotLoggedIn))
     }
-
-    async fn get(&self, path: &'static str) -> Result<Response> {
-        self.request(Method::GET, path, NONE).await
-    }
-
-    async fn get_with(
-        &self,
-        path: &'static str,
-        param: &(impl Serialize + Sync),
-    ) -> Result<Response> {
-        self.request(Method::GET, path, Some(param)).await
-    }
-
-    async fn post(
-        &self,
-        path: &'static str,
-        body: Option<&(impl Serialize + Sync)>,
-    ) -> Result<Response> {
-        self.request(Method::POST, path, body).await
-    }
 }
 
 impl Clone for Qbit {
@@ -1528,7 +1513,7 @@ impl Clone for Qbit {
     }
 }
 
-const NONE: Option<&'static ()> = Option::None;
+const NONE: Option<fn(RequestBuilder) -> Result<RequestBuilder>> = Option::None;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -1554,48 +1539,68 @@ pub enum Error {
 /// Errors defined and returned by the API
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
+    /// User's IP is banned for too many failed login attempts
     #[error("User's IP is banned for too many failed login attempts")]
     IpBanned,
 
+    /// API routes requires login, try again
     #[error("API routes requires login, try again")]
     NotLoggedIn,
 
+    /// Torrent not found
     #[error("Torrent not found")]
     TorrentNotFound,
 
+    /// Torrent name is empty
     #[error("Torrent name is empty")]
     TorrentNameEmpty,
 
+    /// Torrent file is not valid
+    #[error("Torrent file is not valid")]
+    TorrentFileInvalid,
+
+    /// `newUrl` is not a valid URL
     #[error("`newUrl` is not a valid URL")]
     InvalidTrackerUrl,
 
+    /// `newUrl` already exists for the torrent or `origUrl` was not found
     #[error("`newUrl` already exists for the torrent or `origUrl` was not found")]
     ConflictTrackerUrl,
 
+    /// None of the given peers are valid
     #[error("None of the given peers are valid")]
     InvalidPeers,
 
+    /// Torrent queueing is not enabled
     #[error("Torrent queueing is not enabled")]
     QueueingDisabled,
 
+    /// Torrent metadata hasn't downloaded yet or at least one file id was not
+    /// found
     #[error("Torrent metadata hasn't downloaded yet or at least one file id was not found")]
     MetaNotDownloadedOrIdNotFound,
 
+    /// Save path is empty
     #[error("Save path is empty")]
     SavePathEmpty,
 
+    /// User does not have write access to the directory
     #[error("User does not have write access to the directory")]
     NoWriteAccess,
 
+    /// Unable to create save path directory
     #[error("Unable to create save path directory")]
     UnableToCreateDir,
 
+    /// Category name does not exist
     #[error("Category name does not exist")]
     CategoryNotFound,
 
+    /// Category editing failed
     #[error("Category editing failed")]
     CategoryEditingFailed,
 
+    /// Invalid `newPath` or `oldPath`, or `newPath` already in use
     #[error("Invalid `newPath` or `oldPath`, or `newPath` already in use")]
     InvalidPath,
 }

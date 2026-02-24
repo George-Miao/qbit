@@ -50,7 +50,7 @@ impl<C, R, E> QbitBuilder<C, R, E> {
     /// Sets the HTTP client for the `Qbit` instance.
     ///
     /// - When `reqwest` feature is enabled (by default), this method accepts a
-    /// `reqwest::Client`.
+    ///   `reqwest::Client`.
     /// - When `cyper` feature is enabled, this method accepts a
     ///   `cyper::Client`.
     pub fn client(self, client: Client) -> QbitBuilder<C, Client, E> {
