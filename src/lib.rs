@@ -1,6 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![warn(clippy::future_not_send)]
-#![cfg_attr(feature = "docs", feature(doc_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 use std::{
     borrow::Borrow,

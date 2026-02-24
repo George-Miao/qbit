@@ -13,14 +13,13 @@ keywords      = ["qbit", "qBittorrent", "web", "api", "torrent"]
 categories    = ["network-programming"]
 
 [package.metadata.docs.rs]
-features     = ["docs"]
-rustdoc-args = ["--cfg", "feature=\"docs\""]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default    = ["builder", "native-tls"]
 rustls-tls = ["reqwest/rustls-tls"]
 native-tls = ["reqwest/default-tls"]
-docs       = []
 
 # enables typed-builder on args types
 builder = ["dep:typed-builder"]
