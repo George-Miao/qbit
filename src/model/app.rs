@@ -65,6 +65,8 @@ pub struct Preferences {
     /// Path to directory to copy .torrent files of completed downloads to.
     /// Slashes are used as path separators
     pub export_dir_fin: Option<String>,
+    /// Log file directory path
+    pub file_log_path: Option<String>,
     /// True if e-mail notification should be enabled
     pub mail_notification_enabled: Option<bool>,
     /// e-mail where notifications should originate from
