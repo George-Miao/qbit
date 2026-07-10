@@ -12,6 +12,9 @@ use tap::Pipe;
 
 mod_use::mod_use![app, log, sync, torrent, transfer, search];
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ApiKey(pub String);
+
 /// Username and password used to authenticate with qBittorrent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Credential {

@@ -32,6 +32,9 @@ enum LoginState {
     CookieProvided {
         cookie: String,
     },
+    ApiKeyProvided {
+        api_key: String,
+    },
     NotLoggedIn {
         credential: Credential,
     },
@@ -42,9 +45,19 @@ enum LoginState {
 }
 
 impl LoginState {
+    fn as_header_key(&self) -> Option<header::HeaderName> {
+        match self {
+            Self::CookieProvided { .. } => Some(header::COOKIE),
+            Self::ApiKeyProvided { .. } => Some(header::HeaderName::from_static("authentication")),
+            Self::NotLoggedIn { .. } => None,
+            Self::LoggedIn { .. } => Some(header::COOKIE),
+        }
+    }
+
     fn as_cookie(&self) -> Option<&str> {
         match self {
             Self::CookieProvided { cookie } => Some(cookie),
+            Self::ApiKeyProvided { api_key } => Some(api_key),
             Self::NotLoggedIn { .. } => None,
             Self::LoggedIn { cookie, .. } => Some(cookie),
         }
@@ -53,6 +66,7 @@ impl LoginState {
     fn as_credential(&self) -> Option<&Credential> {
         match self {
             Self::CookieProvided { .. } => None,
+            Self::ApiKeyProvided { .. } => None,
             Self::NotLoggedIn { credential } => Some(credential),
             Self::LoggedIn { credential, .. } => Some(credential),
         }
@@ -61,6 +75,7 @@ impl LoginState {
     fn add_cookie(&mut self, cookie: String) {
         match self {
             Self::CookieProvided { .. } => {}
+            Self::ApiKeyProvided { .. } => {} // TODO: Is this right? Might need to add api_key to LoggedIn state.
             Self::LoggedIn { credential, .. } | Self::NotLoggedIn { credential } => {
                 *self = Self::LoggedIn {
                     cookie,
@@ -1484,7 +1499,7 @@ impl Qbit {
                 .client
                 .request(method.clone(), self.url(path))
                 .check()?
-                .header(header::COOKIE, {
+                .header(self.state().as_header_key().expect("Should always have header key if logged in"), {
                     self.state()
                         .as_cookie()
                         .expect("Cookie should be set after login")
