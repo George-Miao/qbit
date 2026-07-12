@@ -75,7 +75,7 @@ impl LoginState {
     fn add_cookie(&mut self, cookie: String) {
         match self {
             Self::CookieProvided { .. } => {}
-            Self::ApiKeyProvided { .. } => {} // TODO: Is this right? Might need to add api_key to LoggedIn state.
+            Self::ApiKeyProvided { .. } => {}
             Self::LoggedIn { credential, .. } | Self::NotLoggedIn { credential } => {
                 *self = Self::LoggedIn {
                     cookie,
