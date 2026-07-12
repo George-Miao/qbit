@@ -27,7 +27,7 @@ use crate::{ext::*, model::*};
 mod builder;
 mod ext;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum LoginState {
     CookieProvided {
         cookie: String,
@@ -48,7 +48,7 @@ impl LoginState {
     fn as_header_key(&self) -> Option<header::HeaderName> {
         match self {
             Self::CookieProvided { .. } => Some(header::COOKIE),
-            Self::ApiKeyProvided { .. } => Some(header::HeaderName::from_static("authentication")),
+            Self::ApiKeyProvided { .. } => Some(header::HeaderName::from_static("authorization")),
             Self::NotLoggedIn { .. } => None,
             Self::LoggedIn { .. } => Some(header::COOKIE),
         }
@@ -1500,14 +1500,14 @@ impl Qbit {
                 .client
                 .request(method.clone(), self.url(path))
                 .check()?
-                .header({
+                .header(
                     state
                         .as_header_key()
-                        .expect("Should always have header key if logged in")}, {
+                        .expect("Should always have header key if logged in"), 
                     state
                         .as_cookie()
                         .expect("Cookie should be set after login")
-                })
+                )
                 .check()?;
 
             if let Some(map) = map.as_mut() {
@@ -1647,20 +1647,25 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 #[cfg(test)]
 mod test {
     use std::{
-        env,
-        ops::Deref,
-        sync::{LazyLock, OnceLock},
+        env, ops::Deref, sync::{LazyLock, Once, OnceLock},
     };
 
     use tracing::info;
 
     use super::*;
 
-    async fn prepare<'a>() -> Result<&'a Qbit> {
-        static PREPARE: LazyLock<(Credential, Url)> = LazyLock::new(|| {
+    async fn init()  {
+        static INIT: Once = Once::new();
+
+        INIT.call_once(|| {
             dotenv::dotenv().expect("Failed to load .env file");
             tracing_subscriber::fmt::init();
+        });
+    }
 
+    async fn client_with_credentials<'a>() -> Result<&'a Qbit> {
+        init().await;
+        static PREPARE: LazyLock<(Credential, Url)> = LazyLock::new(|| {
             (
                 Credential::new(
                     env::var("QBIT_USERNAME").expect("QBIT_USERNAME not set"),
@@ -1685,10 +1690,47 @@ mod test {
         }
     }
 
+    async fn client_with_api_key<'a>() -> Result<&'a Qbit> {
+        init().await;
+        static PREPARE: LazyLock<(String, Url)> = LazyLock::new(|| {
+            (
+                env::var("QBIT_API_KEY").expect("QBIT_API_KEY not set"),
+                env::var("QBIT_BASEURL")
+                    .expect("QBIT_BASEURL not set")
+                    .parse()
+                    .expect("QBIT_BASEURL is not a valid url"),
+            )
+        });
+        static API: OnceLock<Qbit> = OnceLock::new();
+
+        if let Some(api) = API.get() {
+            Ok(api)
+        } else {
+            let (api_key, url) = PREPARE.deref().clone();
+            let api = Qbit::builder()
+                .endpoint(url)
+                .api_key(api_key)
+                .build();
+            drop(API.set(api));
+            Ok(API.get().unwrap())
+        }
+    }
+
     #[cfg_attr(feature = "reqwest", tokio::test)]
     #[cfg_attr(feature = "cyper", compio::test)]
     async fn test_login() {
-        let client = prepare().await.unwrap();
+        let client = client_with_credentials().await.unwrap();
+
+        info!(
+            version = client.get_version().await.unwrap(),
+            "Login success"
+        );
+    }
+
+    #[cfg_attr(feature = "reqwest", tokio::test)]
+    #[cfg_attr(feature = "cyper", compio::test)]
+    async fn test_version_api_key() {
+        let client = client_with_api_key().await.unwrap();
 
         info!(
             version = client.get_version().await.unwrap(),
@@ -1699,7 +1741,7 @@ mod test {
     #[cfg_attr(feature = "reqwest", tokio::test)]
     #[cfg_attr(feature = "cyper", compio::test)]
     async fn test_preference() {
-        let client = prepare().await.unwrap();
+        let client = client_with_credentials().await.unwrap();
 
         client.get_preferences().await.unwrap();
     }
@@ -1707,7 +1749,7 @@ mod test {
     #[cfg_attr(feature = "reqwest", tokio::test)]
     #[cfg_attr(feature = "cyper", compio::test)]
     async fn test_add_torrent() {
-        let client = prepare().await.unwrap();
+        let client = client_with_credentials().await.unwrap();
         let arg = AddTorrentArg {
             source: TorrentSource::Urls {
                 urls: vec![
@@ -1725,7 +1767,7 @@ mod test {
     #[cfg_attr(feature = "reqwest", tokio::test)]
     #[cfg_attr(feature = "cyper", compio::test)]
     async fn test_add_torrent_file() {
-        let client = prepare().await.unwrap();
+        let client = client_with_credentials().await.unwrap();
         let arg = AddTorrentArg {
             source: TorrentSource::TorrentFiles {
                 torrents: vec![ TorrentFile {
@@ -1748,7 +1790,7 @@ mod test {
     #[cfg_attr(feature = "reqwest", tokio::test)]
     #[cfg_attr(feature = "cyper", compio::test)]
     async fn test_get_torrent_list() {
-        let client = prepare().await.unwrap();
+        let client = client_with_credentials().await.unwrap();
         let list = client
             .get_torrent_list(GetTorrentListArg::default())
             .await
