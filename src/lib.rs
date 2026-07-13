@@ -1495,12 +1495,15 @@ impl Qbit {
             // If it's not the first attempt, we need to re-login
             self.login(i != 0).await?;
             
-            let state = self.state();
             let mut req = self
                 .client
                 .request(method.clone(), self.url(path))
-                .check()?
-                .header(
+                .check()?;
+
+            {
+                let state = self.state();
+
+                req = req.header(
                     state
                         .as_header_key()
                         .expect("Should always have header key if logged in"), 
@@ -1509,6 +1512,7 @@ impl Qbit {
                         .expect("Cookie should be set after login")
                 )
                 .check()?;
+            }
 
             if let Some(map) = map.as_mut() {
                 req = map(req)?;
