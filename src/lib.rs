@@ -48,7 +48,7 @@ impl LoginState {
     fn as_header_key(&self) -> Option<header::HeaderName> {
         match self {
             Self::CookieProvided { .. } => Some(header::COOKIE),
-            Self::ApiKeyProvided { .. } => Some(header::HeaderName::from_static("authorization")),
+            Self::ApiKeyProvided { .. } => Some(header::AUTHORIZATION),
             Self::NotLoggedIn { .. } => None,
             Self::LoggedIn { .. } => Some(header::COOKIE),
         }
