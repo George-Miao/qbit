@@ -524,9 +524,27 @@ impl Qbit {
 
         let args: &AddTorrentArg = arg.borrow();
 
+        // qBittorrent 5.0+ renamed the `paused` field to `stopped`. Mirror
+        // whichever one the caller set into the other so the request is
+        // honored regardless of server version.
+        // See <https://github.com/George-Miao/qbit/issues/40>.
+        let owned;
+        let args = if args.paused.is_some() ^ args.stopped.is_some() {
+            let mut args = args.clone();
+            if args.paused.is_none() {
+                args.paused = args.stopped.clone();
+            } else {
+                args.stopped = args.paused.clone();
+            }
+            owned = args;
+            &owned
+        } else {
+            args
+        };
+
         match &args.source {
             TorrentSource::Urls { urls: _ } => {
-                self.post_with("torrents/add", arg.borrow()).await?.end()
+                self.post_with("torrents/add", args).await?.end()
             }
             TorrentSource::TorrentFiles { torrents } => self
                 .request(

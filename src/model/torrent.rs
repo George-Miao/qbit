@@ -463,9 +463,26 @@ pub struct AddTorrentArg {
     pub skip_checking: Option<String>,
 
     /// Add torrents in the paused state. Possible values are `true`, `false`
-    /// (default)
+    /// (default).
+    ///
+    /// This is the field name used by qBittorrent before 5.0; version 5.0+
+    /// renamed it to [`stopped`](Self::stopped). You only need to set one of
+    /// the two — [`add_torrent`](crate::Qbit::add_torrent) copies whichever is
+    /// set into the other so the request is honored regardless of the server
+    /// version. If both are set, they are sent as-is.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paused: Option<String>,
+
+    /// Add torrents in the stopped state. Possible values are `true`, `false`
+    /// (default).
+    ///
+    /// This is the field name used by qBittorrent 5.0+; it is the successor of
+    /// [`paused`](Self::paused). You only need to set one of the two —
+    /// [`add_torrent`](crate::Qbit::add_torrent) copies whichever is set into
+    /// the other so the request is honored regardless of the server version.
+    /// If both are set, they are sent as-is.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stopped: Option<String>,
 
     /// Create the root folder. Possible values are `true`, `false`, unset
     /// (default)
