@@ -489,6 +489,13 @@ pub struct AddTorrentArg {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub root_folder: Option<String>,
 
+    /// Content layout of the torrent, controlling how the downloaded files are
+    /// placed on disk. Unset uses the server's default. Supersedes
+    /// [`root_folder`](Self::root_folder) on qBittorrent 4.3.2+.
+    #[serde(rename = "contentLayout")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_layout: Option<ContentLayout>,
+
     /// Rename torrent
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rename: Option<String>,
@@ -529,6 +536,33 @@ pub struct AddTorrentArg {
     #[serde(rename = "firstLastPiecePrio")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub first_last_piece_priority: Option<String>,
+}
+
+/// How the files of a torrent are laid out on disk when added.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ContentLayout {
+    /// Use the layout as defined by the torrent itself.
+    Original,
+    /// Always create a subfolder containing the torrent's files.
+    Subfolder,
+    /// Never create a subfolder, placing files directly in the save path.
+    NoSubfolder,
+}
+
+#[cfg(test)]
+mod content_layout_tests {
+    use super::ContentLayout;
+
+    #[test]
+    fn serializes_to_api_names() {
+        for (variant, expected) in [
+            (ContentLayout::Original, "Original"),
+            (ContentLayout::Subfolder, "Subfolder"),
+            (ContentLayout::NoSubfolder, "NoSubfolder"),
+        ] {
+            assert_eq!(serde_json::to_value(variant).unwrap(), expected);
+        }
+    }
 }
 
 #[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
