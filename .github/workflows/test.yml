@@ -77,4 +77,11 @@ jobs:
           exit 1
 
       - name: Run tests
-        run: cargo +nightly test
+        run: |
+          # The test harness loads credentials via `dotenv`, which requires a
+          # `.env` file to exist. Materialize it from the workflow env.
+          printf '%s\n' \
+            "QBIT_BASEURL=$QBIT_BASEURL" \
+            "QBIT_USERNAME=$QBIT_USERNAME" \
+            "QBIT_PASSWORD=$QBIT_PASSWORD" > .env
+          cargo +nightly test
