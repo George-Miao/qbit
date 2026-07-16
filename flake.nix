@@ -44,18 +44,7 @@
             openssl
             pkg-config
             cargo-nextest
-          ]
-          ++ (
-            if
-              pkgs.stdenv.hostPlatform.system == "aarch64-darwin"
-              || pkgs.stdenv.hostPlatform.system == "x86_64-darwin"
-            then
-              [
-                darwin.apple_sdk.frameworks.SystemConfiguration
-              ]
-            else
-              [ ]
-          );
+          ];
         in
         rec {
           default = nightly;
