@@ -1,0 +1,87 @@
+name: Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+env:
+  RUST_BACKTRACE: 1
+  QBIT_BASEURL: http://127.0.0.1:8080
+  QBIT_USERNAME: admin
+  QBIT_PASSWORD: adminadmin
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        run: rustup toolchain install nightly --profile minimal
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install qBittorrent
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qbittorrent-nox
+
+      - name: Start qBittorrent
+        run: |
+          set -euo pipefail
+          config_dir="$HOME/.config/qBittorrent"
+          mkdir -p "$config_dir"
+
+          # qBittorrent stores the WebUI password as a PBKDF2-HMAC-SHA512 hash.
+          # Seed a known one so the tests can log in with QBIT_PASSWORD instead
+          # of the random temporary password qBittorrent generates otherwise.
+          pbkdf2=$(python3 -c "import base64, hashlib, os; salt = os.urandom(16); digest = hashlib.pbkdf2_hmac('sha512', b'$QBIT_PASSWORD', salt, 100000); print('@ByteArray(' + base64.b64encode(salt).decode() + ':' + base64.b64encode(digest).decode() + ')')")
+
+          {
+            printf '%s\n' '[LegalNotice]'
+            printf '%s\n' 'Accepted=true'
+            printf '%s\n' ''
+            printf '%s\n' '[Preferences]'
+            printf '%s\n' 'WebUI\Port=8080'
+            printf '%s\n' "WebUI\\Username=$QBIT_USERNAME"
+            printf '%s\n' "WebUI\\Password_PBKDF2=\"$pbkdf2\""
+            printf '%s\n' 'WebUI\LocalHostAuth=true'
+            printf '%s\n' 'WebUI\CSRFProtection=false'
+            printf '%s\n' 'WebUI\HostHeaderValidation=false'
+          } > "$config_dir/qBittorrent.conf"
+
+          qbittorrent-nox --webui-port=8080 > "$RUNNER_TEMP/qbit.log" 2>&1 &
+
+          echo "Waiting for the WebUI to come up..."
+          for _ in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080 || true)
+            if [ "$code" != "000" ]; then
+              echo "qBittorrent is up (HTTP $code)"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "qBittorrent did not start in time:"
+          cat "$RUNNER_TEMP/qbit.log"
+          exit 1
+
+      - name: Run tests
+        run: |
+          # The test harness loads credentials via `dotenv`, which requires a
+          # `.env` file to exist. Materialize it from the workflow env.
+          printf '%s\n' \
+            "QBIT_BASEURL=$QBIT_BASEURL" \
+            "QBIT_USERNAME=$QBIT_USERNAME" \
+            "QBIT_PASSWORD=$QBIT_PASSWORD" > .env
+          cargo +nightly test
