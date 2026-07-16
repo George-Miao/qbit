@@ -565,6 +565,40 @@ mod content_layout_tests {
     }
 }
 
+#[cfg(test)]
+mod torrent_source_tests {
+    use super::{AddTorrentArg, TorrentFile, TorrentSource};
+
+    /// Regression test for <https://github.com/George-Miao/qbit/issues/11>:
+    /// adding a torrent from disk used to fail with `unsupported value`
+    /// because the binary payload was fed to `serde_urlencoded`. The raw file
+    /// bytes are now sent as a separate multipart part, so the arg itself must
+    /// serialize without the `source`/`torrents` field.
+    #[test]
+    fn torrent_files_source_is_skipped_on_serialization() {
+        let arg = AddTorrentArg {
+            source: TorrentSource::TorrentFiles {
+                torrents: vec![TorrentFile {
+                    filename: "test.torrent".to_owned(),
+                    // Non-UTF-8 bytes that `serde_urlencoded` cannot encode.
+                    data: vec![0x64, 0x38, 0x00, 0xff, 0xfe],
+                }],
+            },
+            ..Default::default()
+        };
+
+        let value = serde_json::to_value(&arg).unwrap();
+        let obj = value.as_object().expect("should serialize to an object");
+        assert!(
+            !obj.contains_key("torrents") && !obj.contains_key("source"),
+            "binary torrent payload must not be serialized into the form: {obj:?}"
+        );
+
+        // The trimmed-down arg is now safe to urlencode.
+        serde_urlencoded::to_string(&arg).expect("arg without binary source must urlencode");
+    }
+}
+
 #[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]

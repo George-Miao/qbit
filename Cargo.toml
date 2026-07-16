@@ -65,3 +65,4 @@ compio = { version = "0.18.0", features = ["all"] }
 
 dotenv             = "0.15.0"
 tracing-subscriber = "0.3.16"
+serde_urlencoded   = "0.7.1"
