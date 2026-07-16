@@ -110,7 +110,16 @@ where
     /// Builds the `Qbit` instance with the provided configuration and HTTP
     /// Client.
     pub fn build(self) -> Qbit {
-        let endpoint = self.endpoint.try_into().expect("Invalid endpoint");
+        let mut endpoint: Url = self.endpoint.try_into().expect("Invalid endpoint");
+        // The API path is resolved against the endpoint with `Url::join`, which
+        // treats the last path segment as a file and replaces it unless the
+        // endpoint ends with a slash. Append one so a path prefix such as
+        // `https://host/prefix` is preserved instead of being clobbered.
+        // See <https://github.com/George-Miao/qbit/issues/41>.
+        if !endpoint.path().ends_with('/') {
+            let path = format!("{}/", endpoint.path());
+            endpoint.set_path(&path);
+        }
         let state = self.credential.into_login_state().pipe(Mutex::new);
 
         Qbit {
@@ -157,4 +166,28 @@ fn test_builder() {
         .endpoint("http://localhost:8080")
         .cookie("SID=1234567890")
         .build();
+}
+
+#[test]
+fn test_endpoint_trailing_slash() {
+    // A path prefix without a trailing slash must be preserved, not clobbered
+    // by the API path. See https://github.com/George-Miao/qbit/issues/41.
+    let qbit = QbitBuilder::new()
+        .endpoint("https://qbit.example/path/prefix")
+        .credential(Credential::new("admin", "adminadmin"))
+        .build();
+    assert_eq!(
+        qbit.url("auth/login").as_str(),
+        "https://qbit.example/path/prefix/api/v2/auth/login"
+    );
+
+    // An endpoint that already ends with a slash is left untouched.
+    let qbit = QbitBuilder::new()
+        .endpoint("https://qbit.example/path/prefix/")
+        .credential(Credential::new("admin", "adminadmin"))
+        .build();
+    assert_eq!(
+        qbit.url("auth/login").as_str(),
+        "https://qbit.example/path/prefix/api/v2/auth/login"
+    );
 }
