@@ -1411,7 +1411,7 @@ impl Qbit {
     /// Set force to `true` to force re-login regardless if cookie is already
     /// set.
     pub async fn login(&self, force: bool) -> Result<()> {
-        let re_login = force || { self.state().as_header().0.is_none() };
+        let re_login = force || { self.state().as_header().1.is_none() };
         if re_login {
             debug!("Cookie not found, logging in");
             self.client
