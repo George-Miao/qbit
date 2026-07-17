@@ -45,21 +45,12 @@ enum LoginState {
 }
 
 impl LoginState {
-    fn as_header_key(&self) -> Option<header::HeaderName> {
+    fn as_header(&self) -> (Option<header::HeaderName>, Option<&str>) {
         match self {
-            Self::CookieProvided { .. } => Some(header::COOKIE),
-            Self::ApiKeyProvided { .. } => Some(header::AUTHORIZATION),
-            Self::NotLoggedIn { .. } => None,
-            Self::LoggedIn { .. } => Some(header::COOKIE),
-        }
-    }
-
-    fn as_cookie(&self) -> Option<&str> {
-        match self {
-            Self::CookieProvided { cookie } => Some(cookie),
-            Self::ApiKeyProvided { api_key } => Some(api_key),
-            Self::NotLoggedIn { .. } => None,
-            Self::LoggedIn { cookie, .. } => Some(cookie),
+            Self::CookieProvided { cookie } => (Some(header::COOKIE), Some(cookie)),
+            Self::ApiKeyProvided { api_key } => (Some(header::AUTHORIZATION), Some(api_key)),
+            Self::NotLoggedIn { .. } => (None, None),
+            Self::LoggedIn { cookie, .. } => (Some(header::COOKIE), Some(cookie)),
         }
     }
 
@@ -124,7 +115,7 @@ impl Qbit {
         self.state
             .lock()
             .unwrap()
-            .as_cookie()
+            .as_header().1
             .map(ToOwned::to_owned)
     }
 
@@ -1420,7 +1411,7 @@ impl Qbit {
     /// Set force to `true` to force re-login regardless if cookie is already
     /// set.
     pub async fn login(&self, force: bool) -> Result<()> {
-        let re_login = force || { self.state().as_cookie().is_none() };
+        let re_login = force || { self.state().as_header().0.is_none() };
         if re_login {
             debug!("Cookie not found, logging in");
             self.client
@@ -1494,25 +1485,21 @@ impl Qbit {
         for i in 0..3 {
             // If it's not the first attempt, we need to re-login
             self.login(i != 0).await?;
+
+            let (header_key, header_value) = {
+                let state = self.state();
+                let (header_key, header_value) = state.as_header();
+                let header_key = header_key.expect("Should always have header key if logged in");
+                let header_value = header_value.expect("Should always have header value if logged in");
+                (header_key.to_owned(), header_value.to_owned())
+            };
             
             let mut req = self
                 .client
                 .request(method.clone(), self.url(path))
+                .check()?
+                .header(header_key, header_value)
                 .check()?;
-
-            {
-                let state = self.state();
-
-                req = req.header(
-                    state
-                        .as_header_key()
-                        .expect("Should always have header key if logged in"), 
-                    state
-                        .as_cookie()
-                        .expect("Cookie should be set after login")
-                )
-                .check()?;
-            }
 
             if let Some(map) = map.as_mut() {
                 req = map(req)?;
