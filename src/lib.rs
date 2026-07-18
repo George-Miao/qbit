@@ -147,6 +147,31 @@ impl Qbit {
             .map_err(Into::into)
     }
 
+    /// Get cookies stored in the qBittorrent WebUI.
+    ///
+    /// Added in qBittorrent 5.2.0 (Web API v2.11.3).
+    pub async fn get_cookies(&self) -> Result<Vec<CookieEntry>> {
+        self.get("app/cookies")
+            .await?
+            .json()
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Set cookies for the qBittorrent WebUI.
+    ///
+    /// Added in qBittorrent 5.2.0 (Web API v2.11.3).
+    pub async fn set_cookies(&self, cookies: &[SetCookieArg]) -> Result<()> {
+        #[derive(Serialize)]
+        struct Arg<'a> {
+            cookies: &'a str,
+        }
+        let json = serde_json::to_string(cookies)?;
+        self.post_with("app/setCookies", &Arg { cookies: &json })
+            .await?
+            .end()
+    }
+
     pub async fn shutdown(&self) -> Result<()> {
         self.post("app/shutdown").await?.end()
     }
