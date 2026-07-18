@@ -73,6 +73,12 @@ pub struct Tracker {
     /// Tracker message (there is no way of knowing what this message is - it's
     /// up to tracker admins)
     pub msg: String,
+    /// Next announce timestamp (added in qBittorrent 5.2.0, Web API v2.13.0)
+    #[serde(default)]
+    pub next_announce: i64,
+    /// Minimum announce interval in seconds (added in qBittorrent 5.2.0, Web API v2.13.0)
+    #[serde(default)]
+    pub min_announce: i64,
 }
 
 #[derive(
@@ -99,6 +105,10 @@ pub enum TrackerStatus {
     /// Tracker has been contacted, but it is not working (or doesn't send
     /// proper replies)
     NotWorking   = 4,
+    /// Tracker error (added in qBittorrent 5.2.0, Web API v2.13.0)
+    TrackerError = 5,
+    /// Tracker is unreachable (added in qBittorrent 5.2.0, Web API v2.13.0)
+    Unreachable  = 6,
 }
 
 /// Type that can be either an integer or a string.
@@ -189,3 +199,4 @@ fn test_sep() {
     let sep = Sep::<u8, '|'>::from(vec![]);
     assert_eq!(sep.to_string(), "");
 }
+
