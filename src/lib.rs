@@ -564,6 +564,10 @@ impl Qbit {
                     StatusCode::UNSUPPORTED_MEDIA_TYPE => {
                         Some(Error::ApiError(ApiError::TorrentFileInvalid))
                     }
+                    // qBittorrent 5.2.0+: 409 = all torrents failed (e.g. duplicate)
+                    StatusCode::CONFLICT => {
+                        Some(Error::ApiError(ApiError::TorrentAddFailed))
+                    }
                     _ => None,
                 })?
                 .end(),
@@ -1413,17 +1417,18 @@ impl Qbit {
     pub async fn login(&self, force: bool) -> Result<()> {
         let re_login = force || { self.state().as_header().1.is_none() };
         if re_login {
+            let credential = match self.state().as_credential() {
+                Some(credential) => credential.clone(),
+                None => {
+                    trace!("API key or cookie auth in use, skipping login");
+                    return Ok(());
+                }
+            };
             debug!("Cookie not found, logging in");
             self.client
                 .request(Method::POST, self.url("auth/login"))
                 .check()?
-                .pipe(|req| {
-                    req.form(
-                        self.state()
-                            .as_credential()
-                            .expect("Credential should be set if cookie is not set"),
-                    )
-                })
+                .pipe(|req| req.form(&credential))
                 .check()?
                 .send()
                 .await?
@@ -1587,6 +1592,10 @@ pub enum ApiError {
     #[error("Torrent file is not valid")]
     TorrentFileInvalid,
 
+    /// Torrent could not be added (e.g. duplicate)
+    #[error("Torrent could not be added")]
+    TorrentAddFailed,
+
     /// `newUrl` is not a valid URL
     #[error("`newUrl` is not a valid URL")]
     InvalidTrackerUrl,
@@ -1683,27 +1692,30 @@ mod test {
 
     async fn client_with_api_key<'a>() -> Result<&'a Qbit> {
         init().await;
-        static PREPARE: LazyLock<(String, Url)> = LazyLock::new(|| {
-            (
-                env::var("QBIT_API_KEY").expect("QBIT_API_KEY not set"),
-                env::var("QBIT_BASEURL")
-                    .expect("QBIT_BASEURL not set")
-                    .parse()
-                    .expect("QBIT_BASEURL is not a valid url"),
-            )
+        static PREPARE: LazyLock<Option<(String, Url)>> = LazyLock::new(|| {
+            let api_key = env::var("QBIT_API_KEY").ok()?;
+            let url = env::var("QBIT_BASEURL")
+                .expect("QBIT_BASEURL not set")
+                .parse()
+                .expect("QBIT_BASEURL is not a valid url");
+            Some((api_key, url))
         });
-        static API: OnceLock<Qbit> = OnceLock::new();
+        static API: OnceLock<Option<Qbit>> = OnceLock::new();
 
-        if let Some(api) = API.get() {
+        let prepared = PREPARE.deref();
+        let Some((api_key, url)) = prepared.clone() else {
+            return Err(Error::ApiError(ApiError::NotLoggedIn));
+        };
+
+        if let Some(Some(api)) = API.get() {
             Ok(api)
         } else {
-            let (api_key, url) = PREPARE.deref().clone();
             let api = Qbit::builder()
                 .endpoint(url)
                 .api_key(api_key)
                 .build();
-            drop(API.set(api));
-            Ok(API.get().unwrap())
+            drop(API.set(Some(api)));
+            Ok(API.get().unwrap().as_ref().unwrap())
         }
     }
 
@@ -1721,7 +1733,13 @@ mod test {
     #[cfg_attr(feature = "reqwest", tokio::test)]
     #[cfg_attr(feature = "cyper", compio::test)]
     async fn test_version_api_key() {
-        let client = client_with_api_key().await.unwrap();
+        let client = match client_with_api_key().await {
+            Ok(c) => c,
+            Err(_) => {
+                eprintln!("QBIT_API_KEY not set, skipping API key test");
+                return;
+            }
+        };
 
         info!(
             version = client.get_version().await.unwrap(),
@@ -1762,8 +1780,8 @@ mod test {
         let arg = AddTorrentArg {
             source: TorrentSource::TorrentFiles {
                 torrents: vec![ TorrentFile {
-                    filename: "alice.torrent".into(),
-                    data: client::get("https://github.com/webtorrent/webtorrent-fixtures/raw/d20eec0ae19a18b088cf7b221ff70bb9f840c226/fixtures/alice.torrent")
+                    filename: "leaves.torrent".into(),
+                    data: client::get("https://github.com/webtorrent/webtorrent-fixtures/raw/d20eec0ae19a18b088cf7b221ff70bb9f840c226/fixtures/leaves.torrent")
                         .await
                         .unwrap()
                         .bytes()
