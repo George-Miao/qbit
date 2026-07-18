@@ -415,3 +415,37 @@ impl Visitor<'_> for ScanDirsVisitor {
         Ok(ScanDirValue::Path(PathBuf::from(v)))
     }
 }
+
+/// A single cookie entry returned by `app/cookies` (GET).
+/// All fields are guaranteed to be present in the response.
+/// Added in qBittorrent 5.2.0 (Web API v2.11.3).
+#[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq)]
+pub struct CookieEntry {
+    /// Cookie name
+    pub name: String,
+    /// Cookie domain
+    pub domain: String,
+    /// Cookie path
+    pub path: String,
+    /// Cookie value
+    pub value: String,
+    /// Cookie expiration date (seconds since epoch)
+    pub expiration_date: i64,
+}
+
+/// Arguments for setting cookies via `app/setCookies` (POST).
+/// All fields are optional.
+/// Added in qBittorrent 5.2.0 (Web API v2.11.3).
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
+pub struct SetCookieArg {
+    /// Cookie name
+    pub name: Option<String>,
+    /// Cookie domain
+    pub domain: Option<String>,
+    /// Cookie path
+    pub path: Option<String>,
+    /// Cookie value
+    pub value: Option<String>,
+    /// Cookie expiration date (seconds since epoch)
+    pub expiration_date: Option<i64>,
+}
