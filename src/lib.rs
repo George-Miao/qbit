@@ -375,6 +375,23 @@ impl Qbit {
             .map_err(Into::into)
     }
 
+    /// Get the availability (number of distributed copies) of each piece
+    /// of a torrent. Returns a vector where each element is the availability
+    /// count for the corresponding piece index.
+    ///
+    /// Added in qBittorrent 5.2.0 (Web API v2.15.1).
+    pub async fn get_torrent_piece_availability(
+        &self,
+        hash: impl AsRef<str> + Send + Sync,
+    ) -> Result<Vec<i64>> {
+        self.get_with("torrents/pieceAvailability", &HashArg::new(hash.as_ref()))
+            .await
+            .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
+            .json()
+            .await
+            .map_err(Into::into)
+    }
+
     pub async fn get_torrent_trackers(
         &self,
         hash: impl AsRef<str> + Send + Sync,

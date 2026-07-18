@@ -245,6 +245,9 @@ pub struct TorrentProperty {
     pub addition_date: Option<i64>,
     /// Torrent completion date (unix timestamp)
     pub completion_date: Option<i64>,
+    /// Number of distributed copies of the torrent's selected files.
+    /// Added in qBittorrent 5.2.0 (Web API v2.15.1).
+    pub availability: Option<f64>,
     /// Torrent creator
     pub created_by: Option<String>,
     /// Torrent average download speed (bytes/second)
