@@ -19,6 +19,14 @@ pub struct BuildInfo {
     bitness: i8,
 }
 
+/// Process info returned by `app/processInfo`.
+/// Added in qBittorrent 5.2.0 (Web API v2.15.1).
+#[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq)]
+pub struct ProcessInfo {
+    /// Process launch time as UTC epoch seconds.
+    pub launch_time: i64,
+}
+
 #[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
 #[cfg_attr(
     feature = "builder",
