@@ -306,6 +306,26 @@ impl Qbit {
         self.post("transfer/toggleSpeedLimitsMode").await?.end()
     }
 
+    /// Get global and alternative speed limits (KiB/s, -1 = unlimited).
+    ///
+    /// Added in qBittorrent 5.2.0 (Web API v2.16.0).
+    pub async fn get_speed_limits(&self) -> Result<SpeedLimits> {
+        self.get("transfer/getSpeedLimits")
+            .await?
+            .json()
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Set global and alternative speed limits (KiB/s, -1 = unlimited).
+    ///
+    /// Added in qBittorrent 5.2.0 (Web API v2.16.0).
+    pub async fn set_speed_limits(&self, limits: &SpeedLimits) -> Result<()> {
+        self.post_with("transfer/setSpeedLimits", limits)
+            .await?
+            .end()
+    }
+
     pub async fn get_download_limit(&self) -> Result<u64> {
         self.get("transfer/downloadLimit")
             .await?
