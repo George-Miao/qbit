@@ -450,6 +450,10 @@ pub struct AddTorrentArg {
     /// Cookie sent to download the .torrent file
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cookie: Option<String>,
+    /// Download torrent using a search plugin (added in qBittorrent 5.2.0, Web API v2.13.1).
+    /// Specify the search plugin name to use for downloading.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub downloader: Option<String>,
     /// Category for the torrent
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
