@@ -897,6 +897,35 @@ impl Qbit {
         .end()
     }
 
+    /// Set the comment for one or more torrents.
+    ///
+    /// Added in qBittorrent 5.2.0 (Web API v2.12.1).
+    pub async fn set_torrent_comment(
+        &self,
+        hashes: impl Into<Hashes> + Send + Sync,
+        comment: &str,
+    ) -> Result<()> {
+        #[derive(Serialize)]
+        struct Arg<'a> {
+            hashes: String,
+            comment: &'a str,
+        }
+
+        self.post_with(
+            "torrents/setComment",
+            &Arg {
+                hashes: hashes.into().to_string(),
+                comment,
+            },
+        )
+        .await?
+        .map_status(|c| match c {
+            StatusCode::FORBIDDEN => Some(Error::ApiError(ApiError::NotLoggedIn)),
+            _ => None,
+        })?
+        .end()
+    }
+
     pub async fn set_torrent_category(
         &self,
         hashes: impl Into<Hashes> + Send + Sync,
