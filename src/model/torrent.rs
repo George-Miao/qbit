@@ -447,9 +447,6 @@ pub struct AddTorrentArg {
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Download folder
     pub savepath: Option<String>,
-    /// Cookie sent to download the .torrent file
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cookie: Option<String>,
     /// Category for the torrent
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
