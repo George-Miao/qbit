@@ -1463,6 +1463,7 @@ impl Qbit {
                 .await?
                 .map_status(|code| match code as _ {
                     StatusCode::FORBIDDEN => Some(Error::ApiError(ApiError::IpBanned)),
+                    StatusCode::UNAUTHORIZED => Some(Error::ApiError(ApiError::BadCredentials)),
                     _ => None,
                 })?
                 .extract::<Cookie>()?
@@ -1601,6 +1602,10 @@ pub enum Error {
 /// Errors defined and returned by the API
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
+    /// API returned 401 - invalid credentials
+    #[error("Invalid credentials")]
+    BadCredentials,
+
     /// User's IP is banned for too many failed login attempts
     #[error("User's IP is banned for too many failed login attempts")]
     IpBanned,
@@ -1757,6 +1762,19 @@ mod test {
             version = client.get_version().await.unwrap(),
             "Login success"
         );
+    }
+
+    #[cfg_attr(feature = "reqwest", tokio::test)]
+    #[cfg_attr(feature = "cyper", compio::test)]
+    async fn test_login_bad_credentials() {
+        init().await;
+        let url: Url = env::var("QBIT_BASEURL")
+            .expect("QBIT_BASEURL not set")
+            .parse()
+            .expect("QBIT_BASEURL is not a valid url");
+        let client = Qbit::new(url, Credential::new("no_such_user", "wrong_password"));
+        let err = client.login(true).await.unwrap_err();
+        assert!(matches!(err, Error::ApiError(ApiError::BadCredentials)));
     }
 
     #[cfg_attr(feature = "reqwest", tokio::test)]
