@@ -363,6 +363,40 @@ impl Qbit {
             .map_err(Into::into)
     }
 
+    /// Download a completed file from a torrent's content.
+    ///
+    /// `file` can be either a file index (as a number) or a path relative
+    /// to the torrent content root.
+    ///
+    /// Added in qBittorrent 5.2.0 (Web API v2.16.0).
+    pub async fn download_torrent_file(
+        &self,
+        hash: impl AsRef<str> + Send + Sync,
+        file: impl AsRef<str> + Send + Sync,
+    ) -> Result<Bytes> {
+        #[derive(Serialize)]
+        struct Arg<'a> {
+            hash: &'a str,
+            file: &'a str,
+        }
+        self.post_with(
+            "torrents/downloadFile",
+            &Arg {
+                hash: hash.as_ref(),
+                file: file.as_ref(),
+            },
+        )
+        .await?
+        .map_status(|c| match c {
+            StatusCode::NOT_FOUND => Some(Error::ApiError(ApiError::TorrentNotFound)),
+            StatusCode::FORBIDDEN => Some(Error::ApiError(ApiError::NotLoggedIn)),
+            _ => None,
+        })?
+        .bytes()
+        .await
+        .map_err(Into::into)
+    }
+
     pub async fn get_torrent_properties(
         &self,
         hash: impl AsRef<str> + Send + Sync,
@@ -1805,5 +1839,51 @@ mod test {
             .await
             .unwrap();
         print!("{:#?}", list);
+    }
+
+    #[cfg_attr(feature = "reqwest", tokio::test)]
+    #[cfg_attr(feature = "cyper", compio::test)]
+    async fn test_download_torrent_file() {
+        let client = client_with_credentials().await.unwrap();
+        let expected = client::get("https://github.com/webtorrent/webtorrent-fixtures/raw/master/fixtures/alice.txt")
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        let arg = AddTorrentArg {
+            source: TorrentSource::Urls {
+                urls: vec![
+                    "https://github.com/webtorrent/webtorrent-fixtures/raw/master/fixtures/alice.torrent"
+                        .parse()
+                        .unwrap(),
+                ]
+                .into(),
+            },
+            ..AddTorrentArg::default()
+        };
+        client.add_torrent(arg).await.unwrap();
+        let list = client
+            .get_torrent_list(GetTorrentListArg::default())
+            .await
+            .unwrap();
+        let torrent = list.first().unwrap();
+        let hash = torrent.hash.as_deref().unwrap();
+
+        // Wait for the torrent to finish downloading.
+        for _ in 0..30 {
+            let props = client.get_torrent_properties(&hash).await.unwrap();
+            if props.completion_date.is_some() {
+                break;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        }
+
+        let data = client
+            .download_torrent_file(&hash, "0")
+            .await
+            .unwrap();
+        let content = String::from_utf8(data.to_vec()).unwrap();
+        assert_eq!(content, expected);
     }
 }
