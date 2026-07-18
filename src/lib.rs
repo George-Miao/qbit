@@ -178,6 +178,29 @@ impl Qbit {
         .end()
     }
 
+    /// Get free disk space at the given path (in bytes).
+    ///
+    /// Added in qBittorrent 5.2.0 (Web API v2.15.2).
+    pub async fn get_free_space_at_path(
+        &self,
+        path: impl AsRef<Path> + Send + Sync,
+    ) -> Result<u64> {
+        #[derive(Serialize)]
+        struct Arg<'a> {
+            path: &'a Path,
+        }
+        self.get_with("app/getFreeSpaceAtPathAction", &Arg { path: path.as_ref() })
+            .await?
+            .text()
+            .await
+            .map_err(Into::into)
+            .and_then(|s| {
+                s.parse::<u64>().map_err(|_| Error::BadResponse {
+                    explain: "getFreeSpaceAtPathAction returned non-numeric response",
+                })
+            })
+    }
+
     pub async fn get_default_save_path(&self) -> Result<PathBuf> {
         self.get("app/defaultSavePath")
             .await?
