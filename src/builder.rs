@@ -5,7 +5,7 @@ use std::{fmt::Debug, sync::Mutex};
 use tap::Pipe;
 use url::Url;
 
-use crate::{Client, LoginState, Qbit, ext::Cookie, model::Credential};
+use crate::{Client, LoginState, Qbit, ext::Cookie, model::{ApiKey, Credential}};
 
 pub struct QbitBuilder<C = (), R = (), E = ()> {
     credential: C,
@@ -20,6 +20,12 @@ trait IntoLoginState {
 impl IntoLoginState for Cookie {
     fn into_login_state(self) -> LoginState {
         LoginState::CookieProvided { cookie: self.0 }
+    }
+}
+
+impl IntoLoginState for ApiKey {
+    fn into_login_state(self) -> LoginState {
+        LoginState::ApiKeyProvided { api_key: format!("Bearer {}", self.0) }
     }
 }
 
@@ -70,6 +76,20 @@ impl<C, R, E> QbitBuilder<C, R, E> {
     pub fn cookie(self, cookie: impl Into<String>) -> QbitBuilder<Cookie, R, E> {
         QbitBuilder {
             credential: Cookie(cookie.into()),
+            client: self.client,
+            endpoint: self.endpoint,
+        }
+    }
+
+    /// Sets the api key for authentication.
+    ///
+    /// Note that if you have already set the credential, this method will
+    /// overwrite the credential and use the api key instead. The builder
+    /// will use the latest provided credential for authentication.
+    #[allow(private_interfaces)]
+    pub fn api_key(self, api_key: impl Into<String>) -> QbitBuilder<ApiKey, R, E> {
+        QbitBuilder {
+            credential: ApiKey(api_key.into()),
             client: self.client,
             endpoint: self.endpoint,
         }
@@ -165,6 +185,11 @@ fn test_builder() {
     QbitBuilder::new()
         .endpoint("http://localhost:8080")
         .cookie("SID=1234567890")
+        .build();
+
+    QbitBuilder::new()
+        .endpoint("http://localhost:8080")
+        .api_key("1234567890")
         .build();
 }
 

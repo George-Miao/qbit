@@ -31,22 +31,13 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
-      - name: Install qBittorrent
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y qbittorrent-nox
-
-      - name: Start qBittorrent
+      - name: Start qBittorrent (Docker)
         run: |
           set -euo pipefail
-          config_dir="$HOME/.config/qBittorrent"
-          mkdir -p "$config_dir"
 
-          # qBittorrent stores the WebUI password as a PBKDF2-HMAC-SHA512 hash.
-          # Seed a known one so the tests can log in with QBIT_PASSWORD instead
-          # of the random temporary password qBittorrent generates otherwise.
           pbkdf2=$(python3 -c "import base64, hashlib, os; salt = os.urandom(16); digest = hashlib.pbkdf2_hmac('sha512', b'$QBIT_PASSWORD', salt, 100000); print('@ByteArray(' + base64.b64encode(salt).decode() + ':' + base64.b64encode(digest).decode() + ')')")
 
+          mkdir -p /tmp/qbit-config
           {
             printf '%s\n' '[LegalNotice]'
             printf '%s\n' 'Accepted=true'
@@ -58,30 +49,59 @@ jobs:
             printf '%s\n' 'WebUI\LocalHostAuth=true'
             printf '%s\n' 'WebUI\CSRFProtection=false'
             printf '%s\n' 'WebUI\HostHeaderValidation=false'
-          } > "$config_dir/qBittorrent.conf"
+          } > /tmp/qbit-config/qBittorrent.conf
 
-          qbittorrent-nox --webui-port=8080 > "$RUNNER_TEMP/qbit.log" 2>&1 &
+          docker run -d --name qbit --network host \
+            -v /tmp/qbit-config:/root/.config/qBittorrent \
+            ubuntu:plucky bash -c '
+              apt-get update
+              apt-get install -y software-properties-common
+              add-apt-repository -y ppa:qbittorrent-team/qbittorrent-unstable
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y qbittorrent-nox
+              exec qbittorrent-nox --webui-port=8080
+            '
 
           echo "Waiting for the WebUI to come up..."
-          for _ in $(seq 1 30); do
+          for _ in $(seq 1 60); do
             code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080 || true)
             if [ "$code" != "000" ]; then
               echo "qBittorrent is up (HTTP $code)"
-              exit 0
+              break
             fi
             sleep 1
           done
 
-          echo "qBittorrent did not start in time:"
-          cat "$RUNNER_TEMP/qbit.log"
-          exit 1
+          if [ "$code" = "000" ]; then
+            echo "qBittorrent did not start in time"
+            docker logs qbit
+            exit 1
+          fi
+
+          # Login and rotate the API key to get a known one.
+          cookie_jar=$(mktemp)
+          curl -fsS -c "$cookie_jar" -X POST http://127.0.0.1:8080/api/v2/auth/login \
+            -d "username=$QBIT_USERNAME&password=$QBIT_PASSWORD"
+
+          api_key=$(curl -fsS -b "$cookie_jar" -X POST http://127.0.0.1:8080/api/v2/app/rotateAPIKey \
+            | jq -r '.apiKey')
+
+          if [ -n "$api_key" ]; then
+            echo "Got API key (length=${#api_key}): ${api_key:0:8}..."
+            echo "QBIT_API_KEY=$api_key" >> "$GITHUB_ENV"
+          else
+            echo "rotateAPIKey returned empty, cannot test API key auth"
+          fi
+
+          echo "qBittorrent ready"
 
       - name: Run tests
         run: |
-          # The test harness loads credentials via `dotenv`, which requires a
-          # `.env` file to exist. Materialize it from the workflow env.
           printf '%s\n' \
             "QBIT_BASEURL=$QBIT_BASEURL" \
             "QBIT_USERNAME=$QBIT_USERNAME" \
             "QBIT_PASSWORD=$QBIT_PASSWORD" > .env
+          if [ -n "${QBIT_API_KEY:-}" ]; then
+            echo "QBIT_API_KEY=$QBIT_API_KEY" >> .env
+          fi
           cargo +nightly test
