@@ -1,6 +1,8 @@
+use std::{borrow::Borrow, collections::HashMap};
+
 use serde::Serialize;
 
-use crate::{Qbit, Result, ext::*};
+use crate::{Qbit, Result, ext::*, model::*};
 
 impl Qbit {
     /// Add a folder to the RSS hierarchy.
@@ -84,6 +86,21 @@ impl Qbit {
         .end()
     }
 
+    /// Return the recursive RSS hierarchy, optionally including feed articles.
+    pub async fn get_rss_items(&self, with_data: bool) -> Result<HashMap<String, RssItem>> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Arg {
+            with_data: bool,
+        }
+
+        self.get_with("rss/items", &Arg { with_data })
+            .await?
+            .json()
+            .await
+            .map_err(Into::into)
+    }
+
     /// Mark an RSS item or article as read.
     pub async fn mark_as_read<T: AsRef<str> + Send + Sync>(
         &self,
@@ -120,6 +137,30 @@ impl Qbit {
             "rss/refreshItem",
             &Arg {
                 item_path: item_path.as_ref(),
+            },
+        )
+        .await?
+        .end()
+    }
+
+    /// Create or replace an RSS auto-downloading rule.
+    pub async fn set_rule(
+        &self,
+        rule_name: impl AsRef<str> + Send + Sync,
+        rule_definition: impl Borrow<RssRuleDefinition> + Send + Sync,
+    ) -> Result<()> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Arg<'a> {
+            rule_name: &'a str,
+            rule_def: String,
+        }
+
+        self.post_with(
+            "rss/setRule",
+            &Arg {
+                rule_name: rule_name.as_ref(),
+                rule_def: serde_json::to_string(rule_definition.borrow())?,
             },
         )
         .await?
@@ -166,5 +207,38 @@ impl Qbit {
         )
         .await?
         .end()
+    }
+
+    /// Return all RSS auto-downloading rules keyed by rule name.
+    pub async fn get_rules(&self) -> Result<HashMap<String, RssRuleDefinition>> {
+        self.get("rss/rules")
+            .await?
+            .json()
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Return article titles matching an RSS auto-downloading rule, grouped by
+    /// feed name.
+    pub async fn get_matching_articles(
+        &self,
+        rule_name: impl AsRef<str> + Send + Sync,
+    ) -> Result<HashMap<String, Vec<String>>> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Arg<'a> {
+            rule_name: &'a str,
+        }
+
+        self.get_with(
+            "rss/matchingArticles",
+            &Arg {
+                rule_name: rule_name.as_ref(),
+            },
+        )
+        .await?
+        .json()
+        .await
+        .map_err(Into::into)
     }
 }

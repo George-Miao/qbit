@@ -317,6 +317,19 @@ pub enum ApiError {
     /// Invalid `newPath` or `oldPath`, or `newPath` already in use
     #[error("Invalid `newPath` or `oldPath`, or `newPath` already in use")]
     InvalidPath,
+
+    /// Search could not start because Python is unavailable or the concurrent
+    /// search limit was reached
+    #[error("Search is unavailable")]
+    SearchUnavailable,
+
+    /// Search job does not exist
+    #[error("Search job not found")]
+    SearchJobNotFound,
+
+    /// Search result offset is outside the available result range
+    #[error("Search result offset is out of range")]
+    SearchInvalidOffset,
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;

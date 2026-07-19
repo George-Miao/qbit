@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeFromStr, SerializeDisplay};
 use tap::Pipe;
 
-mod_use::mod_use![app, log, sync, torrent, transfer, search];
+mod_use::mod_use![app, log, sync, torrent, transfer, search, rss];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ApiKey(pub String);
@@ -199,4 +199,3 @@ fn test_sep() {
     let sep = Sep::<u8, '|'>::from(vec![]);
     assert_eq!(sep.to_string(), "");
 }
-

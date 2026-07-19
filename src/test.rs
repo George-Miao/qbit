@@ -239,3 +239,132 @@ async fn test_download_torrent_file() {
     client.delete_torrents(vec![hash], false).await.unwrap();
     assert_eq!(content, expected);
 }
+
+#[cfg_attr(feature = "reqwest", tokio::test)]
+#[cfg_attr(feature = "cyper", compio::test)]
+async fn test_rss_endpoints() {
+    const FOLDER: &str = "qbit-rs-api-test";
+    const FEED_PATH: &str = "qbit-rs-api-test\\feed";
+    const RULE: &str = "qbit-rs-api-test-rule";
+
+    let client = client_with_credentials().await.unwrap();
+    let fixture_baseurl =
+        env::var("QBIT_FIXTURE_BASEURL").unwrap_or_else(|_| "http://127.0.0.1:18080".into());
+    let feed_url = format!("{fixture_baseurl}/test-feed.xml");
+
+    if client
+        .get_rss_items(false)
+        .await
+        .unwrap()
+        .contains_key(FOLDER)
+    {
+        client.remove_item(FOLDER).await.unwrap();
+    }
+    if client.get_rules().await.unwrap().contains_key(RULE) {
+        client.remove_rule(RULE).await.unwrap();
+    }
+
+    client.add_folder(FOLDER).await.unwrap();
+    client
+        .add_feed(feed_url.clone(), Some(FEED_PATH.to_string()))
+        .await
+        .unwrap();
+
+    let items = client.get_rss_items(true).await.unwrap();
+    let RssItem::Folder(folder) = &items[FOLDER] else {
+        panic!("RSS test folder was returned as a feed");
+    };
+    assert!(matches!(folder.get("feed"), Some(RssItem::Feed(_))));
+
+    let rule = RssRuleDefinition {
+        must_contain: "qbit-rs*".into(),
+        affected_feeds: vec![feed_url],
+        ..RssRuleDefinition::default()
+    };
+    client.set_rule(RULE, &rule).await.unwrap();
+
+    let rules = client.get_rules().await.unwrap();
+    assert_eq!(rules[RULE].must_contain, rule.must_contain);
+    client.get_matching_articles(RULE).await.unwrap();
+
+    client.remove_rule(RULE).await.unwrap();
+    client.remove_item(FOLDER).await.unwrap();
+}
+
+#[cfg_attr(feature = "reqwest", tokio::test)]
+#[cfg_attr(feature = "cyper", compio::test)]
+async fn test_search_endpoints() {
+    const PLUGIN: &str = "qbit_rs_test";
+
+    let client = client_with_credentials().await.unwrap();
+    let fixture_baseurl =
+        env::var("QBIT_FIXTURE_BASEURL").unwrap_or_else(|_| "http://127.0.0.1:18080".into());
+    let plugin_url = format!("{fixture_baseurl}/{PLUGIN}.py");
+
+    client
+        .uninstall_search_plugins(vec![PLUGIN.to_string()])
+        .await
+        .unwrap();
+    client
+        .install_search_plugins(vec![plugin_url])
+        .await
+        .unwrap();
+
+    let mut installed = false;
+    for _ in 0..50 {
+        installed = client
+            .get_search_plugins()
+            .await
+            .unwrap()
+            .iter()
+            .any(|plugin| plugin.name == PLUGIN);
+        if installed {
+            break;
+        }
+        sleep(std::time::Duration::from_millis(100)).await;
+    }
+    assert!(installed, "search plugin was not installed in time");
+
+    client
+        .enable_search_plugins(vec![PLUGIN.to_string()], false)
+        .await
+        .unwrap();
+    client
+        .enable_search_plugins(vec![PLUGIN.to_string()], true)
+        .await
+        .unwrap();
+    assert!(
+        client
+            .get_search_plugins()
+            .await
+            .unwrap()
+            .iter()
+            .any(|plugin| plugin.name == PLUGIN && plugin.enabled)
+    );
+
+    let job = client
+        .start_search("qbit-rs", vec![PLUGIN.to_string()], "all")
+        .await
+        .unwrap();
+    let statuses = client.get_search_status(Some(job.id)).await.unwrap();
+    assert_eq!(statuses[0].id, job.id);
+
+    client.stop_search(job.id).await.unwrap();
+    let results = client.get_search_results(job.id, None, None).await.unwrap();
+    assert!(results.total >= results.results.len() as i64);
+    client.delete_search(job.id).await.unwrap();
+
+    client.update_search_plugins().await.unwrap();
+    client
+        .uninstall_search_plugins(vec![PLUGIN.to_string()])
+        .await
+        .unwrap();
+    assert!(
+        client
+            .get_search_plugins()
+            .await
+            .unwrap()
+            .iter()
+            .all(|plugin| plugin.name != PLUGIN)
+    );
+}
