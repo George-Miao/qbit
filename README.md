@@ -2,12 +2,12 @@
 
 [<img alt="crates.io" src="https://img.shields.io/crates/v/qbit-rs?style=for-the-badge&labelColor=555555&color=FFD3B6&logo=rust" height="20">](https://crates.io/crates/qbit-rs)
 [<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-qbit--rs-DCEDC1?style=for-the-badge&labelColor=555555&logo=docs.rs" height="20">](https://docs.rs/qbit-rs)
-[<img alt="github" src="https://img.shields.io/badge/gitub-George--Miao-A8E6CF?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/George-Miao/qbit)
+[<img alt="github" src="https://img.shields.io/badge/github-George--Miao-A8E6CF?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/George-Miao/qbit)
 
 A Rust library for interacting with qBittorrent's Web API.
 
-Implemented according to [WebUI API (qBittorrent 4.1)](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)).
-Since the official documentation often lags behind releases, this crate also includes support for newer, undocumented features to stay current. The implementation is based on the API behavior of qBittorrent v5.1.2.
+Implemented according to the official [WebUI API (qBittorrent 5.0+)](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)).
+The crate also supports endpoints introduced through qBittorrent 5.2 (Web API v2.16.0), including features not yet covered by the official reference.
 For the most accurate and complete list of supported API methods and model fields, please refer to this [crate's documentation on docs.rs](https://docs.rs/qbit-rs/latest/qbit_rs/).
 
 ## Usage
@@ -25,7 +25,12 @@ or manually add to `Cargo.toml`:
 qbit-rs = "0.5"
 ```
 
-Then use it in your code:
+## Authentication
+
+### Username and password
+
+With WebUI credentials, `Qbit` logs in automatically and renews the session if
+its cookie expires:
 
 ```rust,ignore
 use qbit_rs::Qbit;
@@ -33,10 +38,12 @@ use qbit_rs::model::Credential;
 
 let credential = Credential::new("username", "password");
 let api = Qbit::new("http://my-qb-instance.domain", credential);
-let torrents = api.get_version().await;
+let version = api.get_version().await;
 ```
 
-or use the builder pattern:
+### Cookie
+
+To reuse an existing WebUI session, provide its SID cookie:
 
 ```rust,ignore
 use qbit_rs::Qbit;
@@ -45,8 +52,26 @@ let api = Qbit::builder()
     .endpoint("http://my-qb-instance.domain")
     .cookie("SID=1234567890")
     .build();
-let torrents = api.get_version().await;
+let version = api.get_version().await;
 ```
+
+### API key
+
+qBittorrent 5.2 and newer versions support stateless API-key authentication.
+`Qbit` adds the required `Bearer` authorization scheme automatically:
+
+```rust,ignore
+use qbit_rs::Qbit;
+
+let api = Qbit::builder()
+    .endpoint("http://my-qb-instance.domain")
+    .api_key("qbt_your_api_key")
+    .build();
+let version = api.get_version().await;
+```
+
+API keys cannot access the WebUI's static assets or authentication endpoints
+such as `login` and `logout`.
 
 ## HTTP Client
 
@@ -62,19 +87,25 @@ Notice that this will also disable tls and `typed-builder` support for args. Mak
 
 For all methods, see [`Qbit`](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html).
 
-Most of the API is covered, except `RSS` and `Search`. PR is welcomed if you need that part of the API. The following is a list of the implementation status:
+The authentication, application, log, sync, transfer, and torrent-management APIs are covered. RSS support is partial, while the Search API is not yet implemented. PRs are welcome for the remaining methods.
 
 1. [x] Authentication
    1. [x] [Login](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.login)
    1. [x] [Logout](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.logout)
+   1. [x] [API key authentication](#api-key)
+   1. [x] [Get current cookie](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_cookie)
 1. [x] Application
    1. [x] [Get application version](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_version)
    1. [x] [Get API version](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_webapi_version)
    1. [x] [Get build info](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_build_info)
+   1. [x] [Get process info](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_process_info)
    1. [x] [Shutdown application](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.shutdown)
    1. [x] [Get application preferences](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_preferences)
    1. [x] [Set application preferences](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.set_preferences)
+   1. [x] [Get free space at path](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_free_space_at_path)
    1. [x] [Get default save path](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_default_save_path)
+   1. [x] [Get cookies](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_cookies)
+   1. [x] [Set cookies](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.set_cookies)
 1. [x] Log
    1. [x] [Get log](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_logs)
    1. [x] [Get peer log](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_peer_logs)
@@ -85,6 +116,8 @@ Most of the API is covered, except `RSS` and `Search`. PR is welcomed if you nee
    1. [x] [Get global transfer info](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_transfer_info)
    1. [x] [Get alternative speed limits state](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_speed_limits_mode)
    1. [x] [Toggle alternative speed limits](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.toggle_speed_limits_mode)
+   1. [x] [Get global and alternative speed limits](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_speed_limits)
+   1. [x] [Set global and alternative speed limits](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.set_speed_limits)
    1. [x] [Get global download limit](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_download_limit)
    1. [x] [Set global download limit](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.set_download_limit)
    1. [x] [Get global upload limit](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_upload_limit)
@@ -92,18 +125,21 @@ Most of the API is covered, except `RSS` and `Search`. PR is welcomed if you nee
    1. [x] [Ban peers](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.ban_peers)
 1. [x] Torrent management
    1. [x] [Get torrent list](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_torrent_list)
+   1. [x] [Download torrent file](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.download_torrent_file)
    1. [x] [Get torrent generic properties](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_torrent_properties)
+   1. [x] [Get torrent piece availability](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_torrent_piece_availability)
    1. [x] [Get torrent trackers](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_torrent_trackers)
    1. [x] [Get torrent web seeds](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_torrent_web_seeds)
    1. [x] [Get torrent contents](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_torrent_contents)
-   1. [x] [Get torrent pieces' states](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_torrent_pieces_stats)
+   1. [x] [Get torrent pieces' states](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_torrent_pieces_states)
    1. [x] [Get torrent pieces' hashes](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_torrent_pieces_hashes)
    1. [x] [Add new torrent](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.add_torrent)
-   1. [x] [Pause torrents](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.pauce_torrents)
-   1. [x] [Resume torrents](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.resume_torrents)
+   1. [x] [Stop torrents](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.stop_torrents)
+   1. [x] [Start torrents](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.start_torrents)
    1. [x] [Delete torrents](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.delete_torrents)
    1. [x] [Recheck torrents](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.recheck_torrents)
    1. [x] [Reannounce torrents](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.reannounce_torrents)
+   1. [x] [Reannounce torrents with selected trackers](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.reannounce_torrents_with_trackers)
    1. [x] [Edit trackers](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.edit_trackers)
    1. [x] [Remove trackers](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.remove_trackers)
    1. [x] [Add peers](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.add_peers)
@@ -120,10 +156,11 @@ Most of the API is covered, except `RSS` and `Search`. PR is welcomed if you nee
    1. [x] [Set torrent upload limit](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.set_torrent_upload_limit)
    1. [x] [Set torrent location](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.set_torrent_location)
    1. [x] [Set torrent name](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.set_torrent_name)
+   1. [x] [Set torrent comment](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.set_torrent_comment)
    1. [x] [Set torrent category](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.set_torrent_category)
    1. [x] [Get all categories](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_categories)
    1. [x] [Add new category](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.add_category)
-   1. [x] [Edit category](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.edit_categories)
+   1. [x] [Edit category](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.edit_category)
    1. [x] [Remove categories](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.remove_categories)
    1. [x] [Add torrent tags](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.add_torrent_tags)
    1. [x] [Remove torrent tags](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.remove_torrent_tags)
@@ -133,7 +170,7 @@ Most of the API is covered, except `RSS` and `Search`. PR is welcomed if you nee
    1. [x] [Set automatic torrent management](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.set_auto_management)
    1. [x] [Toggle sequential download](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.toggle_sequential_download)
    1. [x] [Set first/last piece priority](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.toggle_first_last_piece_priority)
-   1. [x] [Set force start](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.set_force_star)
+   1. [x] [Set force start](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.set_force_start)
    1. [x] [Set super seeding](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.set_super_seeding)
    1. [x] [Rename file](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.rename_file)
    1. [x] [Rename folder](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.rename_folder)
