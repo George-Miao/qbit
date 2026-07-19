@@ -1688,6 +1688,16 @@ mod test {
 
     use super::*;
 
+    #[cfg(feature = "reqwest")]
+    async fn sleep(duration: std::time::Duration) {
+        tokio::time::sleep(duration).await;
+    }
+
+    #[cfg(feature = "cyper")]
+    async fn sleep(duration: std::time::Duration) {
+        compio::time::sleep(duration).await;
+    }
+
     async fn init()  {
         static INIT: Once = Once::new();
 
@@ -1845,16 +1855,18 @@ mod test {
     #[cfg_attr(feature = "cyper", compio::test)]
     async fn test_download_torrent_file() {
         let client = client_with_credentials().await.unwrap();
-        let expected = client::get("https://github.com/webtorrent/webtorrent-fixtures/raw/master/fixtures/alice.txt")
-            .await
-            .unwrap()
-            .text()
-            .await
-            .unwrap();
+        let expected = client::get(
+            "https://github.com/webtorrent/webtorrent-fixtures/raw/d20eec0ae19a18b088cf7b221ff70bb9f840c226/fixtures/alice.txt",
+        )
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
         let arg = AddTorrentArg {
             source: TorrentSource::Urls {
                 urls: vec![
-                    "https://github.com/webtorrent/webtorrent-fixtures/raw/master/fixtures/alice.torrent"
+                    "https://github.com/webtorrent/webtorrent-fixtures/raw/d20eec0ae19a18b088cf7b221ff70bb9f840c226/fixtures/alice.torrent"
                         .parse()
                         .unwrap(),
                 ]
@@ -1863,21 +1875,34 @@ mod test {
             ..AddTorrentArg::default()
         };
         client.add_torrent(arg).await.unwrap();
-        let list = client
-            .get_torrent_list(GetTorrentListArg::default())
-            .await
-            .unwrap();
-        let torrent = list.first().unwrap();
-        let hash = torrent.hash.as_deref().unwrap();
-
-        // Wait for the torrent to finish downloading.
+        let mut hash = None;
         for _ in 0..30 {
-            let props = client.get_torrent_properties(&hash).await.unwrap();
-            if props.completion_date.is_some() {
+            let list = client
+                .get_torrent_list(GetTorrentListArg::default())
+                .await
+                .unwrap();
+            hash = list
+                .iter()
+                .find(|torrent| torrent.name.as_deref() == Some("alice.txt"))
+                .and_then(|torrent| torrent.hash.clone());
+            if hash.is_some() {
                 break;
             }
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            sleep(std::time::Duration::from_secs(1)).await;
         }
+        let hash = hash.expect("alice torrent was not added in time");
+
+        // Wait for the torrent to finish downloading.
+        let mut completed = false;
+        for _ in 0..30 {
+            let props = client.get_torrent_properties(&hash).await.unwrap();
+            if props.completion_date.is_some_and(|date| date >= 0) {
+                completed = true;
+                break;
+            }
+            sleep(std::time::Duration::from_secs(1)).await;
+        }
+        assert!(completed, "alice torrent did not complete in time");
 
         let data = client
             .download_torrent_file(&hash, "0")
