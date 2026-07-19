@@ -147,6 +147,17 @@ impl Qbit {
             .map_err(Into::into)
     }
 
+    /// Get process info, including launch time.
+    ///
+    /// Added in qBittorrent 5.2.0 (Web API v2.15.1).
+    pub async fn get_process_info(&self) -> Result<ProcessInfo> {
+        self.get("app/processInfo")
+            .await?
+            .json()
+            .await
+            .map_err(Into::into)
+    }
+
     /// Get cookies stored in the qBittorrent WebUI.
     ///
     /// Added in qBittorrent 5.2.0 (Web API v2.11.3).
@@ -171,7 +182,6 @@ impl Qbit {
             .await?
             .end()
     }
-
     pub async fn shutdown(&self) -> Result<()> {
         self.post("app/shutdown").await?.end()
     }
