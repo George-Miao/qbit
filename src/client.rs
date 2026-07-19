@@ -6,7 +6,7 @@ cfg_if::cfg_if! {
     if #[cfg(all(feature = "reqwest", feature = "cyper"))] {
         compile_error!("The 'reqwest' and 'cyper' features cannot be enabled at the same time. To use `cyper`, disable default feature first.");
     } else if #[cfg(feature = "reqwest")] {
-        pub(crate) use reqwest::{Client, Error, Method, Response, StatusCode, Url, RequestBuilder, get, header, multipart};
+        pub(crate) use reqwest::{Client, Error, Method, Response, StatusCode, Url, RequestBuilder, header, multipart};
     } else if #[cfg(feature = "cyper")] {
         pub(crate) use cyper::{Client, Response, Error, RequestBuilder, multipart};
         pub(crate) use url::Url;
@@ -49,11 +49,6 @@ mod cyper_ext {
             let mime = mime.parse()?;
             Ok(self.mime(mime))
         }
-    }
-
-    #[cfg(test)]
-    pub(crate) async fn get<T: cyper::IntoUrl>(url: T) -> Result<Response, cyper::Error> {
-        Client::new().get(url)?.send().await
     }
 
     impl<T> CheckError for cyper::Result<T> {
