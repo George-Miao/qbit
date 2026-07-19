@@ -25,7 +25,12 @@ or manually add to `Cargo.toml`:
 qbit-rs = "0.5"
 ```
 
-Then use it in your code:
+## Authentication
+
+### Username and password
+
+With WebUI credentials, `Qbit` logs in automatically and renews the session if
+its cookie expires:
 
 ```rust,ignore
 use qbit_rs::Qbit;
@@ -36,7 +41,9 @@ let api = Qbit::new("http://my-qb-instance.domain", credential);
 let version = api.get_version().await;
 ```
 
-or use the builder pattern:
+### Cookie
+
+To reuse an existing WebUI session, provide its SID cookie:
 
 ```rust,ignore
 use qbit_rs::Qbit;
@@ -48,7 +55,10 @@ let api = Qbit::builder()
 let version = api.get_version().await;
 ```
 
-qBittorrent 5.2 and newer can also authenticate with an API key:
+### API key
+
+qBittorrent 5.2 and newer versions support stateless API-key authentication.
+`Qbit` adds the required `Bearer` authorization scheme automatically:
 
 ```rust,ignore
 use qbit_rs::Qbit;
@@ -59,6 +69,9 @@ let api = Qbit::builder()
     .build();
 let version = api.get_version().await;
 ```
+
+API keys cannot access the WebUI's static assets or authentication endpoints
+such as `login` and `logout`.
 
 ## HTTP Client
 
