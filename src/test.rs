@@ -1,7 +1,7 @@
 use std::{
     env,
     ops::Deref,
-    sync::{LazyLock, Once, OnceLock},
+    sync::{LazyLock, Once},
 };
 
 use tracing::info;
@@ -28,7 +28,7 @@ async fn init() {
     });
 }
 
-async fn client_with_credentials<'a>() -> Result<&'a Qbit> {
+async fn client_with_credentials() -> Result<Qbit> {
     init().await;
     static PREPARE: LazyLock<(Credential, Url)> = LazyLock::new(|| {
         (
@@ -42,20 +42,13 @@ async fn client_with_credentials<'a>() -> Result<&'a Qbit> {
                 .expect("QBIT_BASEURL is not a valid url"),
         )
     });
-    static API: OnceLock<Qbit> = OnceLock::new();
-
-    if let Some(api) = API.get() {
-        Ok(api)
-    } else {
-        let (credential, url) = PREPARE.deref().clone();
-        let api = Qbit::new(url, credential);
-        api.login(false).await?;
-        drop(API.set(api));
-        Ok(API.get().unwrap())
-    }
+    let (credential, url) = PREPARE.deref().clone();
+    let api = Qbit::new(url, credential);
+    api.login(false).await?;
+    Ok(api)
 }
 
-async fn client_with_api_key<'a>() -> Result<&'a Qbit> {
+async fn client_with_api_key() -> Result<Qbit> {
     init().await;
     static PREPARE: LazyLock<Option<(String, Url)>> = LazyLock::new(|| {
         let api_key = env::var("QBIT_API_KEY").ok()?;
@@ -65,20 +58,45 @@ async fn client_with_api_key<'a>() -> Result<&'a Qbit> {
             .expect("QBIT_BASEURL is not a valid url");
         Some((api_key, url))
     });
-    static API: OnceLock<Option<Qbit>> = OnceLock::new();
-
     let prepared = PREPARE.deref();
     let Some((api_key, url)) = prepared.clone() else {
         return Err(Error::ApiError(ApiError::NotLoggedIn));
     };
 
-    if let Some(Some(api)) = API.get() {
-        Ok(api)
-    } else {
-        let api = Qbit::builder().endpoint(url).api_key(api_key).build();
-        drop(API.set(Some(api)));
-        Ok(API.get().unwrap().as_ref().unwrap())
+    Ok(Qbit::builder().endpoint(url).api_key(api_key).build())
+}
+
+async fn remove_torrent_if_present(client: &Qbit, name: &str) {
+    let hashes = client
+        .get_torrent_list(GetTorrentListArg::default())
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|torrent| torrent.name.as_deref() == Some(name))
+        .filter_map(|torrent| torrent.hash)
+        .collect::<Vec<_>>();
+
+    if !hashes.is_empty() {
+        client.delete_torrents(hashes, false).await.unwrap();
     }
+}
+
+async fn wait_for_torrent(client: &Qbit, name: &str) -> String {
+    for _ in 0..50 {
+        let hash = client
+            .get_torrent_list(GetTorrentListArg::default())
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|torrent| torrent.name.as_deref() == Some(name))
+            .and_then(|torrent| torrent.hash);
+        if let Some(hash) = hash {
+            return hash;
+        }
+        sleep(std::time::Duration::from_millis(100)).await;
+    }
+
+    panic!("{name} torrent was not added in time");
 }
 
 #[cfg_attr(feature = "reqwest", tokio::test)]
@@ -134,10 +152,13 @@ async fn test_preference() {
 #[cfg_attr(feature = "cyper", compio::test)]
 async fn test_add_torrent() {
     let client = client_with_credentials().await.unwrap();
+    remove_torrent_if_present(&client, "numbers").await;
+    let fixture_baseurl =
+        env::var("QBIT_FIXTURE_BASEURL").unwrap_or_else(|_| "http://127.0.0.1:18080".into());
     let arg = AddTorrentArg {
         source: TorrentSource::Urls {
             urls: vec![
-                "https://github.com/webtorrent/webtorrent-fixtures/raw/d20eec0ae19a18b088cf7b221ff70bb9f840c226/fixtures/alice.torrent"
+                format!("{fixture_baseurl}/numbers.torrent")
                     .parse()
                     .unwrap(),
             ]
@@ -147,28 +168,27 @@ async fn test_add_torrent() {
         ..AddTorrentArg::default()
     };
     client.add_torrent(arg).await.unwrap();
+    let hash = wait_for_torrent(&client, "numbers").await;
+    client.delete_torrents(vec![hash], false).await.unwrap();
 }
 #[cfg_attr(feature = "reqwest", tokio::test)]
 #[cfg_attr(feature = "cyper", compio::test)]
 async fn test_add_torrent_file() {
     let client = client_with_credentials().await.unwrap();
+    remove_torrent_if_present(&client, "Leaves of Grass by Walt Whitman.epub").await;
     let arg = AddTorrentArg {
         source: TorrentSource::TorrentFiles {
-            torrents: vec![ TorrentFile {
+            torrents: vec![TorrentFile {
                 filename: "leaves.torrent".into(),
-                data: client::get("https://github.com/webtorrent/webtorrent-fixtures/raw/d20eec0ae19a18b088cf7b221ff70bb9f840c226/fixtures/leaves.torrent")
-                    .await
-                    .unwrap()
-                    .bytes()
-                    .await
-                    .unwrap()
-                    .to_vec(),
-            }]
+                data: include_bytes!("../tests/fixtures/leaves.torrent").to_vec(),
+            }],
         },
         ratio_limit: Some(1.0),
         ..AddTorrentArg::default()
     };
     client.add_torrent(arg).await.unwrap();
+    let hash = wait_for_torrent(&client, "Leaves of Grass by Walt Whitman.epub").await;
+    client.delete_torrents(vec![hash], false).await.unwrap();
 }
 
 #[cfg_attr(feature = "reqwest", tokio::test)]
@@ -186,44 +206,23 @@ async fn test_get_torrent_list() {
 #[cfg_attr(feature = "cyper", compio::test)]
 async fn test_download_torrent_file() {
     let client = client_with_credentials().await.unwrap();
-    let expected = client::get(
-        "https://github.com/webtorrent/webtorrent-fixtures/raw/d20eec0ae19a18b088cf7b221ff70bb9f840c226/fixtures/alice.txt",
-    )
-    .await
-    .unwrap()
-    .text()
-    .await
-    .unwrap();
+    let expected = include_str!("../tests/fixtures/alice.txt");
+    remove_torrent_if_present(&client, "alice.txt").await;
+
     let arg = AddTorrentArg {
-        source: TorrentSource::Urls {
-            urls: vec![
-                "https://github.com/webtorrent/webtorrent-fixtures/raw/d20eec0ae19a18b088cf7b221ff70bb9f840c226/fixtures/alice.torrent"
-                    .parse()
-                    .unwrap(),
-            ]
-            .into(),
+        source: TorrentSource::TorrentFiles {
+            torrents: vec![TorrentFile {
+                filename: "alice.torrent".into(),
+                data: include_bytes!("../tests/fixtures/alice.torrent").to_vec(),
+            }],
         },
+        savepath: Some(format!("{}/tests/fixtures", env!("CARGO_MANIFEST_DIR"))),
         ..AddTorrentArg::default()
     };
     client.add_torrent(arg).await.unwrap();
-    let mut hash = None;
-    for _ in 0..30 {
-        let list = client
-            .get_torrent_list(GetTorrentListArg::default())
-            .await
-            .unwrap();
-        hash = list
-            .iter()
-            .find(|torrent| torrent.name.as_deref() == Some("alice.txt"))
-            .and_then(|torrent| torrent.hash.clone());
-        if hash.is_some() {
-            break;
-        }
-        sleep(std::time::Duration::from_secs(1)).await;
-    }
-    let hash = hash.expect("alice torrent was not added in time");
+    let hash = wait_for_torrent(&client, "alice.txt").await;
 
-    // Wait for the torrent to finish downloading.
+    // qBittorrent hash-checks the content already present in the fixture directory.
     let mut completed = false;
     for _ in 0..30 {
         let props = client.get_torrent_properties(&hash).await.unwrap();
@@ -237,5 +236,6 @@ async fn test_download_torrent_file() {
 
     let data = client.download_torrent_file(&hash, "0").await.unwrap();
     let content = String::from_utf8(data.to_vec()).unwrap();
+    client.delete_torrents(vec![hash], false).await.unwrap();
     assert_eq!(content, expected);
 }
