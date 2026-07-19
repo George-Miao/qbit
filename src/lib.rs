@@ -581,6 +581,31 @@ impl Qbit {
             .end()
     }
 
+    /// Reannounce torrents, optionally specifying which trackers to contact.
+    ///
+    /// `trackers` is a pipe-separated list of tracker URLs. Added in
+    /// qBittorrent 5.2.0 (Web API v2.11.10).
+    pub async fn reannounce_torrents_with_trackers(
+        &self,
+        hashes: impl Into<Hashes> + Send + Sync,
+        trackers: impl Into<Sep<String, '|'>> + Send + Sync,
+    ) -> Result<()> {
+        #[derive(Serialize)]
+        struct Arg {
+            hashes: String,
+            trackers: String,
+        }
+        self.post_with(
+            "torrents/reannounce",
+            &Arg {
+                hashes: hashes.into().to_string(),
+                trackers: trackers.into().to_string(),
+            },
+        )
+        .await?
+        .end()
+    }
+
     pub async fn add_torrent(&self, arg: impl Borrow<AddTorrentArg> + Send + Sync) -> Result<()> {
         use multipart::Form;
 
