@@ -53,7 +53,7 @@ jobs:
 
           docker run -d --name qbit --network host \
             -v /tmp/qbit-config:/root/.config/qBittorrent \
-            ubuntu:plucky bash -c '
+            ubuntu:questing bash -c '
               apt-get update
               apt-get install -y software-properties-common
               add-apt-repository -y ppa:qbittorrent-team/qbittorrent-unstable

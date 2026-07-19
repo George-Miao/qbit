@@ -441,6 +441,40 @@ impl Qbit {
             .map_err(Into::into)
     }
 
+    /// Download a completed file from a torrent's content.
+    ///
+    /// `file` can be either a file index (as a number) or a path relative
+    /// to the torrent content root.
+    ///
+    /// Added in qBittorrent 5.2.0 (Web API v2.16.0).
+    pub async fn download_torrent_file(
+        &self,
+        hash: impl AsRef<str> + Send + Sync,
+        file: impl AsRef<str> + Send + Sync,
+    ) -> Result<Bytes> {
+        #[derive(Serialize)]
+        struct Arg<'a> {
+            hash: &'a str,
+            file: &'a str,
+        }
+        self.post_with(
+            "torrents/downloadFile",
+            &Arg {
+                hash: hash.as_ref(),
+                file: file.as_ref(),
+            },
+        )
+        .await?
+        .map_status(|c| match c {
+            StatusCode::NOT_FOUND => Some(Error::ApiError(ApiError::TorrentNotFound)),
+            StatusCode::FORBIDDEN => Some(Error::ApiError(ApiError::NotLoggedIn)),
+            _ => None,
+        })?
+        .bytes()
+        .await
+        .map_err(Into::into)
+    }
+
     pub async fn get_torrent_properties(
         &self,
         hash: impl AsRef<str> + Send + Sync,
@@ -1808,6 +1842,16 @@ mod test {
 
     use super::*;
 
+    #[cfg(feature = "reqwest")]
+    async fn sleep(duration: std::time::Duration) {
+        tokio::time::sleep(duration).await;
+    }
+
+    #[cfg(feature = "cyper")]
+    async fn sleep(duration: std::time::Duration) {
+        compio::time::sleep(duration).await;
+    }
+
     async fn init()  {
         static INIT: Once = Once::new();
 
@@ -1972,5 +2016,66 @@ mod test {
             .await
             .unwrap();
         print!("{:#?}", list);
+    }
+
+    #[cfg_attr(feature = "reqwest", tokio::test)]
+    #[cfg_attr(feature = "cyper", compio::test)]
+    async fn test_download_torrent_file() {
+        let client = client_with_credentials().await.unwrap();
+        let expected = client::get(
+            "https://github.com/webtorrent/webtorrent-fixtures/raw/d20eec0ae19a18b088cf7b221ff70bb9f840c226/fixtures/alice.txt",
+        )
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+        let arg = AddTorrentArg {
+            source: TorrentSource::Urls {
+                urls: vec![
+                    "https://github.com/webtorrent/webtorrent-fixtures/raw/d20eec0ae19a18b088cf7b221ff70bb9f840c226/fixtures/alice.torrent"
+                        .parse()
+                        .unwrap(),
+                ]
+                .into(),
+            },
+            ..AddTorrentArg::default()
+        };
+        client.add_torrent(arg).await.unwrap();
+        let mut hash = None;
+        for _ in 0..30 {
+            let list = client
+                .get_torrent_list(GetTorrentListArg::default())
+                .await
+                .unwrap();
+            hash = list
+                .iter()
+                .find(|torrent| torrent.name.as_deref() == Some("alice.txt"))
+                .and_then(|torrent| torrent.hash.clone());
+            if hash.is_some() {
+                break;
+            }
+            sleep(std::time::Duration::from_secs(1)).await;
+        }
+        let hash = hash.expect("alice torrent was not added in time");
+
+        // Wait for the torrent to finish downloading.
+        let mut completed = false;
+        for _ in 0..30 {
+            let props = client.get_torrent_properties(&hash).await.unwrap();
+            if props.completion_date.is_some_and(|date| date >= 0) {
+                completed = true;
+                break;
+            }
+            sleep(std::time::Duration::from_secs(1)).await;
+        }
+        assert!(completed, "alice torrent did not complete in time");
+
+        let data = client
+            .download_torrent_file(&hash, "0")
+            .await
+            .unwrap();
+        let content = String::from_utf8(data.to_vec()).unwrap();
+        assert_eq!(content, expected);
     }
 }
