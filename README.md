@@ -92,6 +92,7 @@ The authentication, application, log, sync, transfer, and torrent-management API
 1. [x] Authentication
    1. [x] [Login](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.login)
    1. [x] [Logout](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.logout)
+   1. [x] [API key authentication](#api-key)
    1. [x] [Get current cookie](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_cookie)
 1. [x] Application
    1. [x] [Get application version](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_version)
