@@ -158,6 +158,30 @@ impl Qbit {
             .map_err(Into::into)
     }
 
+    /// Get cookies stored in the qBittorrent WebUI.
+    ///
+    /// Added in qBittorrent 5.2.0 (Web API v2.11.3).
+    pub async fn get_cookies(&self) -> Result<Vec<CookieEntry>> {
+        self.get("app/cookies")
+            .await?
+            .json()
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Set cookies for the qBittorrent WebUI.
+    ///
+    /// Added in qBittorrent 5.2.0 (Web API v2.11.3).
+    pub async fn set_cookies(&self, cookies: &[SetCookieArg]) -> Result<()> {
+        #[derive(Serialize)]
+        struct Arg<'a> {
+            cookies: &'a str,
+        }
+        let json = serde_json::to_string(cookies)?;
+        self.post_with("app/setCookies", &Arg { cookies: &json })
+            .await?
+            .end()
+    }
     pub async fn shutdown(&self) -> Result<()> {
         self.post("app/shutdown").await?.end()
     }
@@ -187,6 +211,29 @@ impl Qbit {
         )
         .await?
         .end()
+    }
+
+    /// Get free disk space at the given path (in bytes).
+    ///
+    /// Added in qBittorrent 5.2.0 (Web API v2.15.2).
+    pub async fn get_free_space_at_path(
+        &self,
+        path: impl AsRef<Path> + Send + Sync,
+    ) -> Result<u64> {
+        #[derive(Serialize)]
+        struct Arg<'a> {
+            path: &'a Path,
+        }
+        self.get_with("app/getFreeSpaceAtPathAction", &Arg { path: path.as_ref() })
+            .await?
+            .text()
+            .await
+            .map_err(Into::into)
+            .and_then(|s| {
+                s.parse::<u64>().map_err(|_| Error::BadResponse {
+                    explain: "getFreeSpaceAtPathAction returned non-numeric response",
+                })
+            })
     }
 
     pub async fn get_default_save_path(&self) -> Result<PathBuf> {
@@ -294,6 +341,26 @@ impl Qbit {
         self.post("transfer/toggleSpeedLimitsMode").await?.end()
     }
 
+    /// Get global and alternative speed limits (KiB/s, -1 = unlimited).
+    ///
+    /// Added in qBittorrent 5.2.0 (Web API v2.16.0).
+    pub async fn get_speed_limits(&self) -> Result<SpeedLimits> {
+        self.get("transfer/getSpeedLimits")
+            .await?
+            .json()
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Set global and alternative speed limits (KiB/s, -1 = unlimited).
+    ///
+    /// Added in qBittorrent 5.2.0 (Web API v2.16.0).
+    pub async fn set_speed_limits(&self, limits: &SpeedLimits) -> Result<()> {
+        self.post_with("transfer/setSpeedLimits", limits)
+            .await?
+            .end()
+    }
+
     pub async fn get_download_limit(&self) -> Result<u64> {
         self.get("transfer/downloadLimit")
             .await?
@@ -379,6 +446,23 @@ impl Qbit {
         hash: impl AsRef<str> + Send + Sync,
     ) -> Result<TorrentProperty> {
         self.get_with("torrents/properties", &HashArg::new(hash.as_ref()))
+            .await
+            .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
+            .json()
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Get the availability (number of distributed copies) of each piece
+    /// of a torrent. Returns a vector where each element is the availability
+    /// count for the corresponding piece index.
+    ///
+    /// Added in qBittorrent 5.2.0 (Web API v2.15.1).
+    pub async fn get_torrent_piece_availability(
+        &self,
+        hash: impl AsRef<str> + Send + Sync,
+    ) -> Result<Vec<i64>> {
+        self.get_with("torrents/pieceAvailability", &HashArg::new(hash.as_ref()))
             .await
             .and_then(|r| r.map_status(TORRENT_NOT_FOUND))?
             .json()
@@ -505,6 +589,31 @@ impl Qbit {
         self.post_with("torrents/reannounce", &HashesArg::new(hashes))
             .await?
             .end()
+    }
+
+    /// Reannounce torrents, optionally specifying which trackers to contact.
+    ///
+    /// `trackers` is a pipe-separated list of tracker URLs. Added in
+    /// qBittorrent 5.2.0 (Web API v2.11.10).
+    pub async fn reannounce_torrents_with_trackers(
+        &self,
+        hashes: impl Into<Hashes> + Send + Sync,
+        trackers: impl Into<Sep<String, '|'>> + Send + Sync,
+    ) -> Result<()> {
+        #[derive(Serialize)]
+        struct Arg {
+            hashes: String,
+            trackers: String,
+        }
+        self.post_with(
+            "torrents/reannounce",
+            &Arg {
+                hashes: hashes.into().to_string(),
+                trackers: trackers.into().to_string(),
+            },
+        )
+        .await?
+        .end()
     }
 
     pub async fn add_torrent(&self, arg: impl Borrow<AddTorrentArg> + Send + Sync) -> Result<()> {
@@ -903,6 +1012,35 @@ impl Qbit {
         .map_status(|c| match c {
             StatusCode::NOT_FOUND => Some(Error::ApiError(ApiError::TorrentNotFound)),
             StatusCode::CONFLICT => panic!("Name should not be empty. This is a bug."),
+            _ => None,
+        })?
+        .end()
+    }
+
+    /// Set the comment for one or more torrents.
+    ///
+    /// Added in qBittorrent 5.2.0 (Web API v2.12.1).
+    pub async fn set_torrent_comment(
+        &self,
+        hashes: impl Into<Hashes> + Send + Sync,
+        comment: &str,
+    ) -> Result<()> {
+        #[derive(Serialize)]
+        struct Arg<'a> {
+            hashes: String,
+            comment: &'a str,
+        }
+
+        self.post_with(
+            "torrents/setComment",
+            &Arg {
+                hashes: hashes.into().to_string(),
+                comment,
+            },
+        )
+        .await?
+        .map_status(|c| match c {
+            StatusCode::FORBIDDEN => Some(Error::ApiError(ApiError::NotLoggedIn)),
             _ => None,
         })?
         .end()
@@ -1445,6 +1583,7 @@ impl Qbit {
                 .await?
                 .map_status(|code| match code as _ {
                     StatusCode::FORBIDDEN => Some(Error::ApiError(ApiError::IpBanned)),
+                    StatusCode::UNAUTHORIZED => Some(Error::ApiError(ApiError::BadCredentials)),
                     _ => None,
                 })?
                 .extract::<Cookie>()?
@@ -1583,6 +1722,10 @@ pub enum Error {
 /// Errors defined and returned by the API
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
+    /// API returned 401 - invalid credentials
+    #[error("Invalid credentials")]
+    BadCredentials,
+
     /// User's IP is banned for too many failed login attempts
     #[error("User's IP is banned for too many failed login attempts")]
     IpBanned,
@@ -1739,6 +1882,19 @@ mod test {
             version = client.get_version().await.unwrap(),
             "Login success"
         );
+    }
+
+    #[cfg_attr(feature = "reqwest", tokio::test)]
+    #[cfg_attr(feature = "cyper", compio::test)]
+    async fn test_login_bad_credentials() {
+        init().await;
+        let url: Url = env::var("QBIT_BASEURL")
+            .expect("QBIT_BASEURL not set")
+            .parse()
+            .expect("QBIT_BASEURL is not a valid url");
+        let client = Qbit::new(url, Credential::new("no_such_user", "wrong_password"));
+        let err = client.login(true).await.unwrap_err();
+        assert!(matches!(err, Error::ApiError(ApiError::BadCredentials)));
     }
 
     #[cfg_attr(feature = "reqwest", tokio::test)]
