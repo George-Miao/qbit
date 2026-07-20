@@ -2,7 +2,7 @@
 
 ## Project
 
-`qbit-rs` is a Rust 2021 client for qBittorrent's Web API. It supports the
+`qbit-rs` is a Rust client for qBittorrent's Web API. It supports the
 default `reqwest` backend and the optional `cyper` backend. Public behavior and
 terminology should follow qBittorrent's official WebUI API documentation.
 
