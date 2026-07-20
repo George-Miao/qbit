@@ -19,9 +19,9 @@ pub struct TransferInfo {
     pub connection_status: ConnectionStatus,
 }
 
+/// qBittorrent's current network connection state.
 #[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-/// qBittorrent's current network connection state.
 pub enum ConnectionStatus {
     /// Connected directly to peers.
     Connected,
@@ -29,8 +29,8 @@ pub enum ConnectionStatus {
     Disconnected,
     /// Connected, but behind a firewall.
     Firewalled,
-    #[serde(other)]
     /// A connection state introduced by a newer qBittorrent version.
+    #[serde(other)]
     Unknown,
 }
 

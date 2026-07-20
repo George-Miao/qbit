@@ -32,6 +32,7 @@ pub struct PeerLog {
     pub reason: Option<String>,
 }
 
+/// Severity level used to filter application log entries.
 #[derive(
     Debug,
     Clone,
@@ -44,7 +45,6 @@ pub struct PeerLog {
     serde_repr::Deserialize_repr,
 )]
 #[repr(i8)]
-/// Severity level used to filter application log entries.
 pub enum LogLevel {
     /// Normal diagnostic message.
     Normal   = 1,
@@ -56,6 +56,7 @@ pub enum LogLevel {
     Critical = 8,
 }
 
+/// Filters accepted by the application log endpoint.
 #[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
 #[cfg_attr(
     feature = "builder",
@@ -63,7 +64,6 @@ pub enum LogLevel {
 )]
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 #[skip_serializing_none]
-/// Filters accepted by the application log endpoint.
 pub struct GetLogsArg {
     /// Include normal messages (default: `true`)
     pub normal: Option<bool>,

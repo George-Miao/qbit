@@ -447,8 +447,8 @@ pub enum TorrentSource {
         torrents: Vec<TorrentFile>,
     },
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 /// Torrent file
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TorrentFile {
     /// Name to use for the multipart file field.
     pub filename: String,
@@ -479,8 +479,8 @@ pub struct AddTorrentArg {
     #[cfg_attr(feature = "builder", builder(!default, setter(!strip_option)))]
     #[serde(skip_serializing_if = "is_torrent_files")]
     pub source: TorrentSource,
-    #[serde(skip_serializing_if = "Option::is_none")]
     /// Download folder
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub savepath: Option<String>,
     /// Cookie sent to download the .torrent file
     #[serde(skip_serializing_if = "Option::is_none")]

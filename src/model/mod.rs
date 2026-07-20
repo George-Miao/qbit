@@ -90,6 +90,7 @@ pub struct Tracker {
     pub min_announce: i64,
 }
 
+/// Current state of a torrent tracker.
 #[derive(
     Debug,
     Clone,
@@ -102,7 +103,6 @@ pub struct Tracker {
     serde_repr::Deserialize_repr,
 )]
 #[repr(i8)]
-/// Current state of a torrent tracker.
 pub enum TrackerStatus {
     /// Tracker is disabled (used for DHT, PeX, and LSD)
     Disabled     = 0,
