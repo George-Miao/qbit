@@ -1,6 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![deny(rustdoc::broken_intra_doc_links)]
+#![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 
 use std::{
     fmt::Debug,
@@ -87,6 +87,8 @@ impl Qbit {
         QbitBuilder::new()
     }
 
+    /// Create a qBittorrent API client with WebUI credentials and a custom
+    /// HTTP client.
     pub fn new_with_client<U>(endpoint: U, credential: Credential, client: Client) -> Self
     where
         U: TryInto<Url>,
@@ -99,6 +101,8 @@ impl Qbit {
             .build()
     }
 
+    /// Create a qBittorrent API client with WebUI credentials and the default
+    /// HTTP client.
     pub fn new<U>(endpoint: U, credential: Credential) -> Self
     where
         U: TryInto<Url>,
@@ -221,23 +225,33 @@ impl Clone for Qbit {
 
 const NONE: Option<fn(RequestBuilder) -> Result<RequestBuilder>> = Option::None;
 
+/// Errors returned by the qBittorrent API client.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// The configured HTTP client could not complete the request.
     #[error("Http error: {0}")]
     HttpError(#[from] client::Error),
 
+    /// The response body or headers did not match the endpoint contract.
     #[error("API Returned bad response: {explain}")]
-    BadResponse { explain: &'static str },
+    BadResponse {
+        /// Explanation of the invalid response.
+        explain: &'static str,
+    },
 
+    /// qBittorrent returned an unrecognized status for the endpoint.
     #[error("API returned unknown status code: {0}")]
     UnknownHttpCode(StatusCode),
 
+    /// A response header expected to contain ASCII text did not.
     #[error("Non ASCII header")]
     NonAsciiHeader,
 
+    /// qBittorrent returned a recognized API error.
     #[error(transparent)]
     ApiError(#[from] ApiError),
 
+    /// JSON encoding or decoding failed.
     #[error("serde_json error: {0}")]
     SerdeJsonError(#[from] serde_json::Error),
 }
@@ -317,6 +331,19 @@ pub enum ApiError {
     /// Invalid `newPath` or `oldPath`, or `newPath` already in use
     #[error("Invalid `newPath` or `oldPath`, or `newPath` already in use")]
     InvalidPath,
+
+    /// Search could not start because Python is unavailable or the concurrent
+    /// search limit was reached
+    #[error("Search is unavailable")]
+    SearchUnavailable,
+
+    /// Search job does not exist
+    #[error("Search job not found")]
+    SearchJobNotFound,
+
+    /// Search result offset is outside the available result range
+    #[error("Search result offset is out of range")]
+    SearchInvalidOffset,
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;

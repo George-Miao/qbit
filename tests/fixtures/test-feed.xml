@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>qbit-rs test feed</title>
+    <link>http://example.invalid/</link>
+    <description>Deterministic RSS fixture</description>
+    <item>
+      <guid>qbit-rs-test-article</guid>
+      <title>qbit-rs test article</title>
+      <link>magnet:?xt=urn:btih:722fe65b2aa26d14f35b4ad627d20236e481d924</link>
+      <description>Deterministic article</description>
+      <pubDate>Wed, 15 Jul 2026 00:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

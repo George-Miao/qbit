@@ -1,6 +1,8 @@
+use std::{borrow::Borrow, collections::HashMap};
+
 use serde::Serialize;
 
-use crate::{Qbit, Result, ext::*};
+use crate::{Qbit, Result, ext::*, model::*};
 
 impl Qbit {
     /// Add a folder to the RSS hierarchy.
@@ -84,6 +86,35 @@ impl Qbit {
         .end()
     }
 
+    /// Return all RSS items as a recursive hierarchy.
+    ///
+    /// Set `with_data` to `true` to include each feed's current articles and
+    /// loading state. With it disabled, qBittorrent returns feed identity and
+    /// URL data without articles.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ApiError`](crate::Error::ApiError) containing
+    /// [`ApiError::NotLoggedIn`](crate::ApiError::NotLoggedIn) when
+    /// authentication fails. Other failures are returned as
+    /// [`Error`](crate::Error).
+    ///
+    /// See qBittorrent's [Get all items](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#get-all-items)
+    /// documentation.
+    pub async fn get_rss_items(&self, with_data: bool) -> Result<HashMap<String, RssItem>> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Arg {
+            with_data: bool,
+        }
+
+        self.get_with("rss/items", &Arg { with_data })
+            .await?
+            .json()
+            .await
+            .map_err(Into::into)
+    }
+
     /// Mark an RSS item or article as read.
     pub async fn mark_as_read<T: AsRef<str> + Send + Sync>(
         &self,
@@ -120,6 +151,43 @@ impl Qbit {
             "rss/refreshItem",
             &Arg {
                 item_path: item_path.as_ref(),
+            },
+        )
+        .await?
+        .end()
+    }
+
+    /// Create or replace an RSS auto-downloading rule.
+    ///
+    /// `rule_name` identifies the rule. `rule_definition` is JSON-encoded into
+    /// qBittorrent's `ruleDef` request parameter.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ApiError`](crate::Error::ApiError) containing
+    /// [`ApiError::NotLoggedIn`](crate::ApiError::NotLoggedIn) when
+    /// authentication fails. Other failures are returned as
+    /// [`Error`](crate::Error).
+    ///
+    /// See qBittorrent's [Set auto-downloading rule](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#set-auto-downloading-rule)
+    /// documentation.
+    pub async fn set_rule(
+        &self,
+        rule_name: impl AsRef<str> + Send + Sync,
+        rule_definition: impl Borrow<RssRuleDefinition> + Send + Sync,
+    ) -> Result<()> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Arg<'a> {
+            rule_name: &'a str,
+            rule_def: String,
+        }
+
+        self.post_with(
+            "rss/setRule",
+            &Arg {
+                rule_name: rule_name.as_ref(),
+                rule_def: serde_json::to_string(rule_definition.borrow())?,
             },
         )
         .await?
@@ -166,5 +234,61 @@ impl Qbit {
         )
         .await?
         .end()
+    }
+
+    /// Return all RSS auto-downloading rules keyed by rule name.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ApiError`](crate::Error::ApiError) containing
+    /// [`ApiError::NotLoggedIn`](crate::ApiError::NotLoggedIn) when
+    /// authentication fails. Other failures are returned as
+    /// [`Error`](crate::Error).
+    ///
+    /// See qBittorrent's [Get all auto-downloading rules](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#get-all-auto-downloading-rules)
+    /// documentation.
+    pub async fn get_rules(&self) -> Result<HashMap<String, RssRuleDefinition>> {
+        self.get("rss/rules")
+            .await?
+            .json()
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Return article titles matching an RSS auto-downloading rule, grouped by
+    /// feed name.
+    ///
+    /// `rule_name` is the name of an existing rule whose filters qBittorrent
+    /// applies to the configured feeds.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ApiError`](crate::Error::ApiError) containing
+    /// [`ApiError::NotLoggedIn`](crate::ApiError::NotLoggedIn) when
+    /// authentication fails. Other failures are returned as
+    /// [`Error`](crate::Error).
+    ///
+    /// See qBittorrent's [Get all articles matching a rule](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#get-all-articles-matching-a-rule)
+    /// documentation.
+    pub async fn get_matching_articles(
+        &self,
+        rule_name: impl AsRef<str> + Send + Sync,
+    ) -> Result<HashMap<String, Vec<String>>> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Arg<'a> {
+            rule_name: &'a str,
+        }
+
+        self.get_with(
+            "rss/matchingArticles",
+            &Arg {
+                rule_name: rule_name.as_ref(),
+            },
+        )
+        .await?
+        .json()
+        .await
+        .map_err(Into::into)
     }
 }

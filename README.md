@@ -87,7 +87,7 @@ Notice that this will also disable tls and `typed-builder` support for args. Mak
 
 For all methods, see [`Qbit`](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html).
 
-The authentication, application, log, sync, transfer, and torrent-management APIs are covered. RSS support is partial, while the Search API is not yet implemented. PRs are welcome for the remaining methods.
+The authentication, application, log, sync, transfer, torrent-management, RSS, and Search APIs are covered.
 
 1. [x] Authentication
    1. [x] [Login](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.login)
@@ -174,30 +174,30 @@ The authentication, application, log, sync, transfer, and torrent-management API
    1. [x] [Set super seeding](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.set_super_seeding)
    1. [x] [Rename file](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.rename_file)
    1. [x] [Rename folder](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.rename_folder)
-1. [ ] RSS (experimental)
+1. [x] RSS (experimental)
    1. [x] [Add folder](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.add_folder)
    1. [x] [Add feed](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.add_feed)
    1. [x] [Remove item](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.remove_item)
    1. [x] [Move item](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.move_item)
-   1. [ ] Get all items
+   1. [x] [Get all items](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_rss_items)
    1. [x] [Mark as read](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.mark_as_read)
    1. [x] [Refresh item](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.refresh_item)
-   1. [ ] Set auto-downloading rule
+   1. [x] [Set auto-downloading rule](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.set_rule)
    1. [x] [Rename auto-downloading rule](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.rename_rule)
    1. [x] [Remove auto-downloading rule](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.remove_rule)
-   1. [ ] Get all auto-downloading rules
-   1. [ ] Get all articles matching a rule
-1. [ ] Search
-   1. [ ] Start search
-   1. [ ] Stop search
-   1. [ ] Get search status
-   1. [ ] Get search results
-   1. [ ] Delete search
-   1. [ ] Get search plugins
-   1. [ ] Install search plugin
-   1. [ ] Uninstall search plugin
-   1. [ ] Enable search plugin
-   1. [ ] Update search plugins
+   1. [x] [Get all auto-downloading rules](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_rules)
+   1. [x] [Get all articles matching a rule](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_matching_articles)
+1. [x] Search
+   1. [x] [Start search](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.start_search)
+   1. [x] [Stop search](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.stop_search)
+   1. [x] [Get search status](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_search_status)
+   1. [x] [Get search results](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_search_results)
+   1. [x] [Delete search](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.delete_search)
+   1. [x] [Get search plugins](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.get_search_plugins)
+   1. [x] [Install search plugin](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.install_search_plugins)
+   1. [x] [Uninstall search plugin](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.uninstall_search_plugins)
+   1. [x] [Enable search plugin](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.enable_search_plugins)
+   1. [x] [Update search plugins](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.update_search_plugins)
 1. Undocumented
    1. [x] [Export torrent](https://docs.rs/qbit-rs/latest/qbit_rs/struct.Qbit.html#method.export_torrent)[^1]
 

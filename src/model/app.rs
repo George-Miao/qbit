@@ -1,10 +1,11 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Visitor};
 use serde_with::skip_serializing_none;
 
 use crate::model::IntOrStr;
 
+/// qBittorrent and dependency version information.
 #[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq)]
 pub struct BuildInfo {
     /// QT version
@@ -32,6 +33,9 @@ pub struct ProcessInfo {
     feature = "builder",
     builder(field_defaults(default, setter(strip_option)))
 )]
+/// qBittorrent application preferences.
+///
+/// Optional fields allow callers to update only selected settings.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, PartialEq)]
 #[skip_serializing_none]
 pub struct Preferences {
@@ -360,10 +364,14 @@ pub struct Preferences {
     pub utp_tcp_mixed_mode: Option<i64>,
 }
 
+/// Download destination configured for a monitored directory.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ScanDirValue {
+    /// Download into the monitored directory itself.
     MonitoredFolder,
+    /// Download into qBittorrent's default save path.
     DefaultSavingPath,
+    /// Download into a specific path.
     Path(PathBuf),
 }
 

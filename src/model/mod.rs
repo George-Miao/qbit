@@ -10,8 +10,9 @@ use serde::{Deserialize, Serialize};
 use serde_with::{DeserializeFromStr, SerializeDisplay};
 use tap::Pipe;
 
-mod_use::mod_use![app, log, sync, torrent, transfer, search];
+mod_use::mod_use![app, log, sync, torrent, transfer, search, rss];
 
+/// API key used for stateless bearer authentication.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ApiKey(pub String);
 
@@ -23,6 +24,7 @@ pub struct Credential {
 }
 
 impl Credential {
+    /// Create WebUI credentials from a username and password.
     pub fn new(username: impl Into<String>, password: impl Into<String>) -> Self {
         Self {
             username: username.into(),
@@ -39,18 +41,24 @@ impl Credential {
         }
     }
 
+    /// Return whether these are placeholder credentials for cookie-based
+    /// authentication.
     pub fn is_dummy(&self) -> bool {
         self.username.is_empty() && self.password.is_empty()
     }
 }
 
+/// Torrent category configuration returned by qBittorrent.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Category {
+    /// Category name.
     pub name: String,
+    /// Default save path assigned to the category.
     pub save_path: PathBuf,
 }
 
+/// Tracker information for a torrent.
 #[derive(Debug, Deserialize, PartialEq, Eq, Clone)]
 pub struct Tracker {
     /// Tracker url
@@ -76,11 +84,13 @@ pub struct Tracker {
     /// Next announce timestamp (added in qBittorrent 5.2.0, Web API v2.13.0)
     #[serde(default)]
     pub next_announce: i64,
-    /// Minimum announce interval in seconds (added in qBittorrent 5.2.0, Web API v2.13.0)
+    /// Minimum announce interval in seconds (added in qBittorrent 5.2.0, Web
+    /// API v2.13.0)
     #[serde(default)]
     pub min_announce: i64,
 }
 
+/// Current state of a torrent tracker.
 #[derive(
     Debug,
     Clone,
@@ -115,7 +125,9 @@ pub enum TrackerStatus {
 #[derive(Debug, Clone, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(untagged)]
 pub enum IntOrStr {
+    /// Integer representation used by older qBittorrent versions.
     Int(i64),
+    /// String representation used by newer qBittorrent versions.
     Str(String),
 }
 
@@ -149,10 +161,12 @@ impl<T: FromStr, const C: char> FromStr for Sep<T, C> {
 pub struct NonEmptyStr<T>(T);
 
 impl<T: AsRef<str>> NonEmptyStr<T> {
+    /// Return the wrapped non-empty string.
     pub fn as_str(&self) -> &str {
         self.0.as_ref()
     }
 
+    /// Wrap `s` when it is non-empty, otherwise return `None`.
     pub fn new(s: T) -> Option<Self> {
         if s.as_ref().is_empty() {
             None
@@ -199,4 +213,3 @@ fn test_sep() {
     let sep = Sep::<u8, '|'>::from(vec![]);
     assert_eq!(sep.to_string(), "");
 }
-
