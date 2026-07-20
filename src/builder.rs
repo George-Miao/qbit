@@ -5,8 +5,13 @@ use std::{fmt::Debug, sync::Mutex};
 use tap::Pipe;
 use url::Url;
 
-use crate::{Client, LoginState, Qbit, ext::Cookie, model::{ApiKey, Credential}};
+use crate::{
+    Client, LoginState, Qbit,
+    ext::Cookie,
+    model::{ApiKey, Credential},
+};
 
+/// Builder for configuring a [`Qbit`](crate::Qbit) client.
 pub struct QbitBuilder<C = (), R = (), E = ()> {
     credential: C,
     client: R,
@@ -25,7 +30,9 @@ impl IntoLoginState for Cookie {
 
 impl IntoLoginState for ApiKey {
     fn into_login_state(self) -> LoginState {
-        LoginState::ApiKeyProvided { api_key: format!("Bearer {}", self.0) }
+        LoginState::ApiKeyProvided {
+            api_key: format!("Bearer {}", self.0),
+        }
     }
 }
 

@@ -1,5 +1,3 @@
-#![deny(missing_docs)]
-
 use serde::Serialize;
 use serde_with::skip_serializing_none;
 
@@ -12,8 +10,17 @@ impl Qbit {
     /// special values `all` and `enabled`; multiple values are separated by
     /// `|`. `category` accepts a plugin-supported category or `all`.
     ///
-    /// Returns the new search job ID. qBittorrent returns HTTP 409 when Python
-    /// is unavailable or the concurrent-search limit has been reached.
+    /// Returns the new search job ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ApiError`](crate::Error::ApiError) containing:
+    ///
+    /// - [`ApiError::SearchUnavailable`] when Python is unavailable or the
+    ///   concurrent-search limit has been reached.
+    /// - [`ApiError::NotLoggedIn`] when authentication fails.
+    ///
+    /// Other failures are returned as [`Error`](crate::Error).
     ///
     /// See qBittorrent's [Start search](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#start-search)
     /// documentation.
@@ -49,7 +56,14 @@ impl Qbit {
 
     /// Stop the search job with the supplied ID.
     ///
-    /// qBittorrent returns HTTP 404 when the job does not exist.
+    /// # Errors
+    ///
+    /// Returns [`Error::ApiError`](crate::Error::ApiError) containing:
+    ///
+    /// - [`ApiError::SearchJobNotFound`] when the job does not exist.
+    /// - [`ApiError::NotLoggedIn`] when authentication fails.
+    ///
+    /// Other failures are returned as [`Error`](crate::Error).
     ///
     /// See qBittorrent's [Stop search](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#stop-search)
     /// documentation.
@@ -61,7 +75,15 @@ impl Qbit {
     ///
     /// Pass a job ID to select one job or `None` to return every job. The total
     /// result count may continue increasing while a job is running.
-    /// qBittorrent returns HTTP 404 when a supplied job ID does not exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ApiError`](crate::Error::ApiError) containing:
+    ///
+    /// - [`ApiError::SearchJobNotFound`] when a supplied job ID does not exist.
+    /// - [`ApiError::NotLoggedIn`] when authentication fails.
+    ///
+    /// Other failures are returned as [`Error`](crate::Error).
     ///
     /// See qBittorrent's [Get search status](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#get-search-status)
     /// documentation.
@@ -86,8 +108,18 @@ impl Qbit {
     /// Return a page of results for the supplied search job.
     ///
     /// A `limit` of zero or less means no limit. A negative `offset` counts
-    /// backward from the newest results. qBittorrent returns HTTP 404 for an
-    /// unknown job and HTTP 409 when the offset is outside the result range.
+    /// backward from the newest results.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ApiError`](crate::Error::ApiError) containing:
+    ///
+    /// - [`ApiError::SearchJobNotFound`] when the job does not exist.
+    /// - [`ApiError::SearchInvalidOffset`] when the offset is outside the
+    ///   available result range.
+    /// - [`ApiError::NotLoggedIn`] when authentication fails.
+    ///
+    /// Other failures are returned as [`Error`](crate::Error).
     ///
     /// See qBittorrent's [Get search results](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#get-search-results)
     /// documentation.
@@ -126,8 +158,16 @@ impl Qbit {
 
     /// Delete the search job with the supplied ID.
     ///
-    /// qBittorrent cancels an active job before deleting it and returns HTTP
-    /// 404 when the job does not exist.
+    /// qBittorrent cancels an active job before deleting it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ApiError`](crate::Error::ApiError) containing:
+    ///
+    /// - [`ApiError::SearchJobNotFound`] when the job does not exist.
+    /// - [`ApiError::NotLoggedIn`] when authentication fails.
+    ///
+    /// Other failures are returned as [`Error`](crate::Error).
     ///
     /// See qBittorrent's [Delete search](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#delete-search)
     /// documentation.
@@ -139,6 +179,12 @@ impl Qbit {
     ///
     /// Each entry includes its enabled state, names, version, site URL, and
     /// supported categories.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ApiError`](crate::Error::ApiError) containing
+    /// [`ApiError::NotLoggedIn`] when authentication fails. Other failures are
+    /// returned as [`Error`](crate::Error).
     ///
     /// See qBittorrent's [Get search plugins](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#get-search-plugins)
     /// documentation.
@@ -154,6 +200,12 @@ impl Qbit {
     ///
     /// `sources` may contain multiple plugin URLs or file paths separated by
     /// `|`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ApiError`](crate::Error::ApiError) containing
+    /// [`ApiError::NotLoggedIn`] when authentication fails. Other failures are
+    /// returned as [`Error`](crate::Error).
     ///
     /// See qBittorrent's [Install search plugin](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#install-search-plugin)
     /// documentation.
@@ -180,6 +232,12 @@ impl Qbit {
     ///
     /// `names` may contain multiple short plugin names separated by `|`.
     ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ApiError`](crate::Error::ApiError) containing
+    /// [`ApiError::NotLoggedIn`] when authentication fails. Other failures are
+    /// returned as [`Error`](crate::Error).
+    ///
     /// See qBittorrent's [Uninstall search plugin](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#uninstall-search-plugin)
     /// documentation.
     pub async fn uninstall_search_plugins(
@@ -205,6 +263,12 @@ impl Qbit {
     ///
     /// `names` may contain multiple short plugin names separated by `|`.
     /// `enable` selects whether those plugins are enabled or disabled.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ApiError`](crate::Error::ApiError) containing
+    /// [`ApiError::NotLoggedIn`] when authentication fails. Other failures are
+    /// returned as [`Error`](crate::Error).
     ///
     /// See qBittorrent's [Enable search plugin](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#enable-search-plugin)
     /// documentation.
@@ -234,6 +298,12 @@ impl Qbit {
     ///
     /// qBittorrent performs the update check asynchronously after accepting
     /// the request.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ApiError`](crate::Error::ApiError) containing
+    /// [`ApiError::NotLoggedIn`] when authentication fails. Other failures are
+    /// returned as [`Error`](crate::Error).
     ///
     /// See qBittorrent's [Update search plugins](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#update-search-plugins)
     /// documentation.

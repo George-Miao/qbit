@@ -2,8 +2,8 @@ use std::net::IpAddr;
 
 use serde_with::skip_serializing_none;
 
+/// Application log entry returned by `log/main`.
 #[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq)]
-
 pub struct Log {
     /// ID of the message
     pub id: u64,
@@ -17,6 +17,7 @@ pub struct Log {
     pub log_type: i8,
 }
 
+/// Peer log entry returned by `log/peers`.
 #[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq)]
 pub struct PeerLog {
     /// ID of the peer
@@ -43,10 +44,15 @@ pub struct PeerLog {
     serde_repr::Deserialize_repr,
 )]
 #[repr(i8)]
+/// Severity level used to filter application log entries.
 pub enum LogLevel {
+    /// Normal diagnostic message.
     Normal   = 1,
+    /// Informational message.
     Info     = 2,
+    /// Warning message.
     Warning  = 4,
+    /// Critical error message.
     Critical = 8,
 }
 
@@ -57,6 +63,7 @@ pub enum LogLevel {
 )]
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 #[skip_serializing_none]
+/// Filters accepted by the application log endpoint.
 pub struct GetLogsArg {
     /// Include normal messages (default: `true`)
     pub normal: Option<bool>,

@@ -1,3 +1,4 @@
+/// Global transfer information shown in qBittorrent's status bar.
 #[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq)]
 pub struct TransferInfo {
     /// Global download rate (bytes/s)
@@ -20,11 +21,16 @@ pub struct TransferInfo {
 
 #[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+/// qBittorrent's current network connection state.
 pub enum ConnectionStatus {
+    /// Connected directly to peers.
     Connected,
+    /// Not connected to the peer network.
     Disconnected,
+    /// Connected, but behind a firewall.
     Firewalled,
     #[serde(other)]
+    /// A connection state introduced by a newer qBittorrent version.
     Unknown,
 }
 

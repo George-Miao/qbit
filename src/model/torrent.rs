@@ -5,22 +5,35 @@ use serde_with::{SerializeDisplay, skip_serializing_none};
 
 use crate::{client::Url, model::Sep};
 
+/// State filter used when retrieving the torrent list.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TorrentFilter {
+    /// Return all torrents.
     All,
+    /// Return torrents that are downloading.
     Downloading,
+    /// Return torrents that have completed downloading.
     Completed,
+    /// Return paused torrents.
     Paused,
+    /// Return torrents that are transferring data.
     Active,
+    /// Return torrents that are not transferring data.
     Inactive,
+    /// Return resumed torrents.
     Resumed,
+    /// Return stalled torrents.
     Stalled,
+    /// Return stalled uploading torrents.
     StalledUploading,
+    /// Return stalled downloading torrents.
     StalledDownloading,
+    /// Return torrents in an error state.
     Errored,
 }
 
+/// Summary information for a torrent in the torrent list.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Torrent {
     /// Time (Unix Epoch) when the torrent was added to the client
@@ -99,6 +112,7 @@ pub struct Torrent {
     pub progress: Option<f64>,
     /// Torrent share ratio. Max ratio value: 9999.
     pub ratio: Option<f64>,
+    /// Maximum share ratio before the torrent stops seeding.
     pub ratio_limit: Option<f64>,
     /// Torrent reannounce interval
     pub reannounce: Option<i64>,
@@ -144,6 +158,7 @@ pub struct Torrent {
     pub upspeed: Option<i64>,
 }
 
+/// Current transfer state of a torrent.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum State {
     /// Some error occurred, applies to paused torrents
@@ -207,6 +222,7 @@ pub enum State {
     Unknown,
 }
 
+/// General properties of a torrent.
 #[derive(Debug, Clone, PartialEq, serde::Deserialize)]
 pub struct TorrentProperty {
     /// Torrent save path
@@ -280,12 +296,14 @@ pub struct TorrentProperty {
     pub up_speed: Option<i64>,
 }
 
+/// A web seed configured for a torrent.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct WebSeed {
     /// Web seed URL
     pub url: Url,
 }
 
+/// Information about a file contained in a torrent.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TorrentContent {
     /// File index
@@ -309,6 +327,7 @@ pub struct TorrentContent {
     pub availability: f64,
 }
 
+/// Download priority assigned to a torrent file.
 #[derive(
     Debug,
     Clone,
@@ -334,6 +353,7 @@ pub enum Priority {
     Maximal       = 7,
 }
 
+/// Download state of a torrent piece.
 #[derive(
     Debug,
     Clone,
@@ -379,6 +399,7 @@ impl Display for Hashes {
     }
 }
 
+/// Parameters for filtering, sorting, and paginating the torrent list.
 #[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
 #[cfg_attr(
     feature = "builder",
@@ -411,18 +432,27 @@ pub struct GetTorrentListArg {
     pub hashes: Option<String>,
 }
 
+/// Source used to add one or more torrents.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum TorrentSource {
     /// URLs
-    Urls { urls: Sep<Url, '\n'> },
+    Urls {
+        /// URLs separated by newlines in the request.
+        urls: Sep<Url, '\n'>,
+    },
     /// Torrent files
-    TorrentFiles { torrents: Vec<TorrentFile> },
+    TorrentFiles {
+        /// Torrent files included as multipart form fields.
+        torrents: Vec<TorrentFile>,
+    },
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 /// Torrent file
 pub struct TorrentFile {
+    /// Name to use for the multipart file field.
     pub filename: String,
+    /// Raw torrent file contents.
     pub data: Vec<u8>,
 }
 impl Default for TorrentSource {
@@ -435,6 +465,7 @@ impl Default for TorrentSource {
 fn is_torrent_files(source: &TorrentSource) -> bool {
     matches!(source, TorrentSource::TorrentFiles { .. })
 }
+/// Parameters used when adding one or more torrents.
 #[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
 #[cfg_attr(
     feature = "builder",
@@ -443,6 +474,7 @@ fn is_torrent_files(source: &TorrentSource) -> bool {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, Default)]
 #[skip_serializing_none]
 pub struct AddTorrentArg {
+    /// URLs or torrent files to add.
     #[serde(flatten)]
     #[cfg_attr(feature = "builder", builder(!default, setter(!strip_option)))]
     #[serde(skip_serializing_if = "is_torrent_files")]
@@ -453,8 +485,8 @@ pub struct AddTorrentArg {
     /// Cookie sent to download the .torrent file
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cookie: Option<String>,
-    /// Download torrent using a search plugin (added in qBittorrent 5.2.0, Web API v2.13.1).
-    /// Specify the search plugin name to use for downloading.
+    /// Download torrent using a search plugin (added in qBittorrent 5.2.0, Web
+    /// API v2.13.1). Specify the search plugin name to use for downloading.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub downloader: Option<String>,
     /// Category for the torrent
@@ -606,24 +638,33 @@ mod torrent_source_tests {
     }
 }
 
+/// Per-torrent share limits.
 #[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SetTorrentSharedLimitArg {
+    /// Torrents whose limits are changed.
     #[cfg_attr(feature = "builder", builder(setter(into)))]
     pub hashes: Hashes,
+    /// Share ratio limit.
     #[cfg_attr(feature = "builder", builder(default, setter(strip_option)))]
     pub ratio_limit: Option<RatioLimit>,
+    /// Total seeding time limit.
     #[cfg_attr(feature = "builder", builder(default, setter(strip_option)))]
     pub seeding_time_limit: Option<SeedingTimeLimit>,
+    /// Inactive seeding time limit.
     #[cfg_attr(feature = "builder", builder(default, setter(strip_option)))]
     pub inactive_seeding_time_limit: Option<SeedingTimeLimit>,
 }
 
+/// Share ratio limit for a torrent.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub enum RatioLimit {
+    /// Use the global share ratio limit.
     Global,
+    /// Disable the share ratio limit.
     NoLimit,
+    /// Use the specified share ratio limit.
     Limited(f64),
 }
 
@@ -640,9 +681,12 @@ impl Serialize for RatioLimit {
     }
 }
 
+/// Seeding time limit for a torrent.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub enum SeedingTimeLimit {
+    /// Use the global seeding time limit.
     Global,
+    /// Disable the seeding time limit.
     NoLimit,
     /// Number of minutes
     Limited(u64),

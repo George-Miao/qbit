@@ -1,5 +1,3 @@
-#![deny(missing_docs)]
-
 use serde::{Deserialize, Serialize};
 
 /// Identifier returned when a search job is started.

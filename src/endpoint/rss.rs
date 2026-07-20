@@ -1,5 +1,3 @@
-#![deny(missing_docs)]
-
 use std::{borrow::Borrow, collections::HashMap};
 
 use serde::Serialize;
@@ -94,6 +92,13 @@ impl Qbit {
     /// loading state. With it disabled, qBittorrent returns feed identity and
     /// URL data without articles.
     ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ApiError`](crate::Error::ApiError) containing
+    /// [`ApiError::NotLoggedIn`](crate::ApiError::NotLoggedIn) when
+    /// authentication fails. Other failures are returned as
+    /// [`Error`](crate::Error).
+    ///
     /// See qBittorrent's [Get all items](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#get-all-items)
     /// documentation.
     pub async fn get_rss_items(&self, with_data: bool) -> Result<HashMap<String, RssItem>> {
@@ -156,6 +161,13 @@ impl Qbit {
     ///
     /// `rule_name` identifies the rule. `rule_definition` is JSON-encoded into
     /// qBittorrent's `ruleDef` request parameter.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ApiError`](crate::Error::ApiError) containing
+    /// [`ApiError::NotLoggedIn`](crate::ApiError::NotLoggedIn) when
+    /// authentication fails. Other failures are returned as
+    /// [`Error`](crate::Error).
     ///
     /// See qBittorrent's [Set auto-downloading rule](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#set-auto-downloading-rule)
     /// documentation.
@@ -226,6 +238,13 @@ impl Qbit {
 
     /// Return all RSS auto-downloading rules keyed by rule name.
     ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ApiError`](crate::Error::ApiError) containing
+    /// [`ApiError::NotLoggedIn`](crate::ApiError::NotLoggedIn) when
+    /// authentication fails. Other failures are returned as
+    /// [`Error`](crate::Error).
+    ///
     /// See qBittorrent's [Get all auto-downloading rules](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#get-all-auto-downloading-rules)
     /// documentation.
     pub async fn get_rules(&self) -> Result<HashMap<String, RssRuleDefinition>> {
@@ -241,6 +260,13 @@ impl Qbit {
     ///
     /// `rule_name` is the name of an existing rule whose filters qBittorrent
     /// applies to the configured feeds.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ApiError`](crate::Error::ApiError) containing
+    /// [`ApiError::NotLoggedIn`](crate::ApiError::NotLoggedIn) when
+    /// authentication fails. Other failures are returned as
+    /// [`Error`](crate::Error).
     ///
     /// See qBittorrent's [Get all articles matching a rule](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0)#get-all-articles-matching-a-rule)
     /// documentation.
