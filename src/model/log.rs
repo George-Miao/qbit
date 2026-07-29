@@ -62,8 +62,8 @@ pub enum LogLevel {
     feature = "builder",
     builder(field_defaults(default, setter(strip_option)))
 )]
-#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 #[skip_serializing_none]
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 pub struct GetLogsArg {
     /// Include normal messages (default: `true`)
     pub normal: Option<bool>,
@@ -75,4 +75,25 @@ pub struct GetLogsArg {
     pub critical: Option<bool>,
     /// Exclude messages with "message id" <= `last_known_id` (default: `-1`)
     pub last_known_id: Option<i64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::GetLogsArg;
+
+    #[test]
+    fn get_logs_arg_skips_none_fields() {
+        let arg = GetLogsArg {
+            normal: None,
+            info: None,
+            warning: None,
+            critical: None,
+            last_known_id: None,
+        };
+        let json = serde_json::to_string(&arg).unwrap();
+        assert!(
+            !json.contains("null"),
+            "None fields should be skipped, got: {json}"
+        );
+    }
 }

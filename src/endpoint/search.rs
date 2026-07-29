@@ -91,8 +91,8 @@ impl Qbit {
         &self,
         id: impl Into<Option<i64>> + Send + Sync,
     ) -> Result<Vec<SearchJobStatus>> {
-        #[derive(Serialize)]
         #[skip_serializing_none]
+        #[derive(Serialize)]
         struct Arg {
             id: Option<i64>,
         }
@@ -129,8 +129,8 @@ impl Qbit {
         limit: impl Into<Option<i64>> + Send + Sync,
         offset: impl Into<Option<i64>> + Send + Sync,
     ) -> Result<SearchResults> {
-        #[derive(Serialize)]
         #[skip_serializing_none]
+        #[derive(Serialize)]
         struct Arg {
             id: i64,
             limit: Option<i64>,

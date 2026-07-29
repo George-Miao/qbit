@@ -405,8 +405,8 @@ impl Display for Hashes {
     feature = "builder",
     builder(field_defaults(default, setter(strip_option)))
 )]
-#[derive(Debug, Clone, PartialEq, Default, serde::Serialize)]
 #[skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize)]
 pub struct GetTorrentListArg {
     /// Filter torrent list by state. Allowed state filters: `all`,
     /// `downloading`, `seeding`, `completed`, `paused`, `active`, `inactive`,
@@ -471,8 +471,8 @@ fn is_torrent_files(source: &TorrentSource) -> bool {
     feature = "builder",
     builder(field_defaults(default, setter(strip_option)))
 )]
-#[derive(Debug, Clone, PartialEq, serde::Serialize, Default)]
 #[skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, Default)]
 pub struct AddTorrentArg {
     /// URLs or torrent files to add.
     #[serde(flatten)]
@@ -635,6 +635,36 @@ mod torrent_source_tests {
 
         // The trimmed-down arg is now safe to urlencode.
         serde_urlencoded::to_string(&arg).expect("arg without binary source must urlencode");
+    }
+}
+
+#[cfg(test)]
+mod skip_serializing_none_tests {
+    use super::{AddTorrentArg, GetTorrentListArg, TorrentSource};
+
+    #[test]
+    fn get_torrent_list_arg_skips_none_fields() {
+        let arg = GetTorrentListArg::default();
+        let json = serde_json::to_string(&arg).unwrap();
+        assert!(
+            !json.contains("null"),
+            "None fields should be skipped, got: {json}"
+        );
+    }
+
+    #[test]
+    fn add_torrent_arg_skips_none_fields() {
+        let arg = AddTorrentArg {
+            source: TorrentSource::Urls {
+                urls: super::Sep::from(vec![]),
+            },
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&arg).unwrap();
+        assert!(
+            !json.contains("null"),
+            "None fields should be skipped, got: {json}"
+        );
     }
 }
 
