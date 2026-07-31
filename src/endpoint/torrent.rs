@@ -197,8 +197,8 @@ impl Qbit {
         hashes: impl Into<Hashes> + Send + Sync,
         delete_files: impl Into<Option<bool>> + Send + Sync,
     ) -> Result<()> {
-        #[derive(Serialize)]
         #[skip_serializing_none]
+        #[derive(Serialize)]
         #[serde(rename_all = "camelCase")]
         struct Arg {
             hashes: Hashes,
@@ -840,8 +840,8 @@ impl Qbit {
         hashes: impl Into<Hashes> + Send + Sync,
         tags: Option<impl Into<Sep<String, ','>> + Send>,
     ) -> Result<()> {
-        #[derive(Serialize)]
         #[skip_serializing_none]
+        #[derive(Serialize)]
         struct Arg {
             hashes: String,
             tags: Option<String>,

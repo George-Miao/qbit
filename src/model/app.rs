@@ -28,6 +28,7 @@ pub struct ProcessInfo {
     pub launch_time: i64,
 }
 
+#[skip_serializing_none]
 #[cfg_attr(feature = "builder", derive(typed_builder::TypedBuilder))]
 #[cfg_attr(
     feature = "builder",
@@ -37,7 +38,6 @@ pub struct ProcessInfo {
 ///
 /// Optional fields allow callers to update only selected settings.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, PartialEq)]
-#[skip_serializing_none]
 pub struct Preferences {
     /// Currently selected language (e.g. en_GB for English)
     pub locale: Option<String>,
@@ -464,4 +464,22 @@ pub struct SetCookieArg {
     pub value: Option<String>,
     /// Cookie expiration date (seconds since epoch)
     pub expiration_date: Option<i64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preferences_skips_none_fields() {
+        let prefs = Preferences {
+            save_path: Some("/data/torrents".to_string()),
+            auto_tmm_enabled: Some(true),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&prefs).unwrap();
+        assert!(json.contains("save_path"));
+        assert!(json.contains("auto_tmm_enabled"));
+        assert!(!json.contains("null"), "None fields should be skipped, got: {json}");
+    }
 }

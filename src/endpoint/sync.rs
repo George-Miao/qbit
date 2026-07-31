@@ -6,8 +6,8 @@ use crate::{Qbit, Result, ext::*, model::*};
 impl Qbit {
     /// Return main-data changes since the supplied response ID.
     pub async fn sync(&self, rid: impl Into<Option<i64>> + Send + Sync) -> Result<SyncData> {
-        #[derive(Serialize)]
         #[skip_serializing_none]
+        #[derive(Serialize)]
         struct Arg {
             rid: Option<i64>,
         }

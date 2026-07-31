@@ -20,8 +20,8 @@ impl Qbit {
         &self,
         last_known_id: impl Into<Option<i64>> + Send + Sync,
     ) -> Result<Vec<PeerLog>> {
-        #[derive(Serialize)]
         #[skip_serializing_none]
+        #[derive(Serialize)]
         struct Arg {
             last_known_id: Option<i64>,
         }
