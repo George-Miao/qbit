@@ -195,6 +195,9 @@ pub enum State {
     /// Torrent has just started downloading and is fetching metadata
     #[serde(rename = "metaDL")]
     MetaDL,
+    /// Torrent is forced to download metadata, ignoring the queue limit
+    #[serde(rename = "forcedMetaDL")]
+    ForcedMetaDL,
     /// Torrent is paused and has NOT finished downloading,
     /// stoppedDL is new name in qBit5+
     #[serde(rename = "pausedDL", alias = "stoppedDL")]
