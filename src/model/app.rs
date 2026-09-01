@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::PathBuf};
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Visitor};
 use serde_with::skip_serializing_none;
 
-use crate::model::IntOrStr;
+use crate::model::{ContentLayout, IntOrStr};
 
 /// qBittorrent and dependency version information.
 #[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq)]
@@ -41,8 +41,8 @@ pub struct ProcessInfo {
 pub struct Preferences {
     /// Currently selected language (e.g. en_GB for English)
     pub locale: Option<String>,
-    /// True if a subfolder should be created when adding a torrent
-    pub create_subfolder_enabled: Option<bool>,
+    /// Default content layout for newly added torrents.
+    pub torrent_content_layout: Option<ContentLayout>,
     /// True if torrents should be added in a Paused state
     pub start_paused_enabled: Option<bool>,
     /// TODO
@@ -481,5 +481,25 @@ mod tests {
         assert!(json.contains("save_path"));
         assert!(json.contains("auto_tmm_enabled"));
         assert!(!json.contains("null"), "None fields should be skipped, got: {json}");
+    }
+
+    #[test]
+    fn preferences_round_trips_torrent_content_layout() {
+        for (layout, api_value) in [
+            (ContentLayout::Original, "Original"),
+            (ContentLayout::Subfolder, "Subfolder"),
+            (ContentLayout::NoSubfolder, "NoSubfolder"),
+        ] {
+            let expected = serde_json::json!({"torrent_content_layout": api_value});
+            let prefs = Preferences {
+                torrent_content_layout: Some(layout),
+                ..Default::default()
+            };
+
+            assert_eq!(serde_json::to_value(&prefs).unwrap(), expected);
+
+            let prefs: Preferences = serde_json::from_value(expected).unwrap();
+            assert_eq!(prefs.torrent_content_layout, Some(layout));
+        }
     }
 }
